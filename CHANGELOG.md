@@ -8,6 +8,7 @@ All notable changes to Local Vision AI are documented in this file.
 - `.github/workflows/manual-release.yml` — manual trigger workflow with tag auto-creation
 - `scripts/update_changelog.sh` — auto-generate changelog entries from git commits
 - `docs/CHANGELOG_TEMPLATE.md` — release notes template and checklist
+- `.github/scripts/extract_changelog.py` — Python script to extract version sections from CHANGELOG.md for release notes
 
 ### Changed
 - `.github/workflows/release.yml` — improved: shared metadata job, version injection, DMG creation, artifact verification
