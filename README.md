@@ -6,39 +6,32 @@ Production-structured local multimodal AI for Apple Silicon.
 
 Local Vision AI provides two local inference pipelines on your Mac:
 
-1. **Text-to-Image** — Generate images from prompts using Stable Diffusion 1.5.
-2. **Image-to-Text** — Analyze images, caption them, answer visual questions, and extract structured JSON using SmolVLM (via MLX-VLM).
+1. **Text-to-Image** — Generate photorealistic images from prompts using **FLUX.2 [klein] 4B** (via MLX).
+2. **Image-to-Text** — Analyze images, caption them, answer visual questions, and extract structured JSON using **SmolVLM 256M** (via MLX-VLM).
 
 Everything runs on-device. No cloud API keys required.
 
 ## Architecture
 
-```
-┌──────────────────────────────────────────┐
-│            FastAPI (uvicorn)             │
-├──────────────┬───────────────────────────┤
-│   POST       │    POST       POST        │
-│ /v1/images   │ /v1/vision  /v1/vision   │
-│ /generate    │ /analyze    /extract      │
-└──────┬───────┴──────┬────────────┬───────┘
-       │              │            │
-┌──────▼───────┐ ┌────▼────────┐  │
-│ TextToImage  │ │ ImageToText │  │
-│   Service    │ │   Service   │  │
-└──────┬───────┘ └────┬────────┘  │
-       │              │           │
-┌──────▼──────────────▼───────────▼────────┐
-│          Memory Manager                  │
-│  (One model loaded at a time, thread-  │
-│   safe switching, telemetry)           │
-└──────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A[Client] -- HTTP --> B[FastAPI / Uvicorn]
+    B --> C{Memory Manager}
+    C -->|Load| D[FLUX.2 T2I Service]
+    C -->|Load| E[SmolVLM I2T Service]
+    D -->|subprocess| F[mflux-generate-flux2]
+    E -->|MLX| G[mlx_vlm.generate]
+    F --> H[Generated Image PNG]
+    G --> I[Text / JSON Response]
+    C -.->|Unload before switch| D
+    C -.->|Unload before switch| E
 ```
 
 ## Hardware Assumptions
 
 - Apple Silicon Mac (M1/M2/M3+)
 - macOS 14+
-- 16 GB unified memory (minimum comfortable config)
+- **16 GB unified memory** (tested and confirmed working)
 - No CUDA / NVIDIA hardware
 
 ## Installation
@@ -70,10 +63,18 @@ make download-models
 Or:
 
 ```bash
-uv run python scripts/download_models.py
+bash scripts/download_models.sh
 ```
 
 Models are cached to `./models/huggingface/`.
+
+### Disk Space Required
+
+| Model | Size | Notes |
+|-------|------|-------|
+| FLUX.2 [klein] 4B int4 | ~6–7 GB | T2I weights (primary) |
+| SmolVLM 256M int4 | ~200 MB | I2T weights |
+| Stable Diffusion 1.5 | ~5 GB | Legacy T2I fallback (optional) |
 
 ## Running the API
 
@@ -84,25 +85,53 @@ make run
 Or:
 
 ```bash
-uv run python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
+HF_HOME=$(pwd)/models/huggingface \
+  uv run python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
 
 ## Example curl Commands
 
-### Text-to-Image
+### Text-to-Image (FLUX.2)
+
+**512×512 — fast, memory-safe (recommended)**
 
 ```bash
 curl -X POST http://localhost:8000/v1/images/generate \
   -H "Content-Type: application/json" \
   -d '{
-    "prompt": "A small futuristic robot working at a wooden desk",
-    "negative_prompt": "blurry, deformed, low quality",
+    "prompt": "A fierce cat and an angry dog fighting in a living room, dramatic lighting, detailed fur, photorealistic",
     "width": 512,
     "height": 512,
-    "steps": 20,
-    "guidance_scale": 7.0,
-    "seed": 3407
+    "steps": 4,
+    "guidance_scale": 1.0,
+    "seed": 1337
   }'
+```
+
+**1024×1024 — higher quality, uses ~12 GB peak**
+
+```bash
+curl -X POST http://localhost:8000/v1/images/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "A fierce cat and an angry dog fighting in a living room",
+    "width": 1024,
+    "height": 1024,
+    "steps": 4,
+    "guidance_scale": 1.0,
+    "seed": 1337
+  }'
+```
+
+**Direct CLI (no server needed)**
+
+```bash
+HF_HOME=$(pwd)/models/huggingface \
+.venv/bin/mflux-generate-flux2 \
+  --model mlx-community/FLUX.2-Klein-4B-4bit \
+  --prompt "A fierce cat and an angry dog fighting" \
+  --width 512 --height 512 --steps 4 --seed 1337 \
+  --output outputs/text_to_image/my_image.png
 ```
 
 ### Image-to-Text (Analyze)
@@ -123,6 +152,32 @@ curl -X POST http://localhost:8000/v1/vision/extract \
   -F "prompt=Extract the objects and colors as JSON." \
   -F "max_tokens=512"
 ```
+
+## Memory Guidelines
+
+| Resolution | Peak Memory | Safe on 16 GB? | Speed |
+|------------|-------------|----------------|-------|
+| **512×512** | ~4.5–5.5 GB | ✅ Yes (recommended) | ~30–40s |
+| **1024×1024** | ~11–13 GB | ⚠️ Tight (ensure I2T unloaded) | ~60–70s |
+
+**Rules:**
+- Only **one** heavy pipeline is kept in memory at a time.
+- The memory manager automatically unloads the previous pipeline before loading the next.
+- Do not run other heavy apps (e.g., video editing, Xcode builds) during 1024×1024 generation.
+- FLUX.2 runs in a **subprocess** via mflux, so the FastAPI process itself stays light.
+
+## Backend Selection
+
+Edit `config/text_to_image.yaml`:
+
+```yaml
+t2i:
+  backend: "flux2"   # recommended — FLUX.2 [klein] 4B
+  # or:
+  backend: "sd15"    # legacy — Stable Diffusion 1.5 (smaller, lower quality)
+```
+
+Restart the API after changing config.
 
 ## Dataset Preparation
 
@@ -160,6 +215,35 @@ uv run python -m training.text_to_image.prepare_dataset \
 
 ## Fine-Tuning
 
+### FLUX.2 LoRA (Text-to-Image)
+
+`mflux` supports LoRA training natively. Configuration:
+
+```json
+{
+  "training": {
+    "base_model": "flux2-klein-4b",
+    "model_id": "mlx-community/FLUX.2-Klein-4B-4bit",
+    "quantize": 4,
+    "lora": { "rank": 8, "alpha": 16, "dropout": 0.05 },
+    "optimizer": { "type": "adamw", "learning_rate": 1e-4 },
+    "training_params": {
+      "batch_size": 1,
+      "gradient_accumulation_steps": 4,
+      "epochs": 1
+    }
+  }
+}
+```
+
+Train:
+
+```bash
+.venv/bin/mflux-train \
+  --base-model flux2-klein-4b \
+  --config config/flux2_lora.json
+```
+
 ### Image-to-Text (VLM LoRA)
 
 ```bash
@@ -170,51 +254,28 @@ make train-vlm-smoke
 make train-vlm
 ```
 
-### Text-to-Image LoRA Feasibility
-
-See [`docs/text-to-image-training-feasibility.md`](docs/text-to-image-training-feasibility.md).
-
-Local training is feasible for small experiments, but a cloud GPU is recommended for production LoRA training.
-
 ## Evaluation
 
 ```bash
 make evaluate-vlm
 ```
 
-## Memory Limitations
-
-- Only **one** large model is kept in memory at a time.
-- The memory manager automatically unloads the previous pipeline before loading the next.
-- Peak safe memory usage: ~12 GB. The system will reject requests if memory exceeds the configured limit.
-- Start image generation at **512×512**.
-- Do not run other heavy apps (e.g., video editing, Xcode builds) simultaneously.
-
 ## Troubleshooting
 
 | Issue | Likely Cause | Fix |
 |-------|-------------|-----|
-| `NotImplementedError` during T2I | Unsupported MPS op | Lower resolution or steps |
+| `mflux not found` | mflux not installed | `uv pip install mflux` |
+| `Peak MLX memory: 12.37 GB` | Normal for 1024×1024 | Reduce to 512×512 if needed |
 | `MemoryError` | Model already loaded + another request | Wait for idle unload or restart API |
-| Slow first inference | MPS shader compilation | Warm-up run on startup |
 | Corrupt image upload | Wrong format or size | Use PNG/JPG under 10 MB |
 | JSON parse failure from I2T | Model output raw text | Retry or tighten prompt |
-
-## How Unsloth Is Used
-
-Unsloth is available in the project for vision-language fine-tuning. The installed version supports:
-
-- `FastVisionModel.from_pretrained(...)` with 4-bit loading
-- PEFT LoRA injection
-- Gradient checkpointing
-
-It is **not** used for text-to-image in Milestone 1 (Diffusers + MPS is more reliable for SD 1.5).
+| Slow first inference | MLX weight download in progress | Pre-download with `make download-models` |
 
 ## Replacing Selected Models
 
 Edit `config/text_to_image.yaml` and `config/image_to_text.yaml`:
 
-- **T2I:** Change `model_id` to any SD 1.5/2.1-compatible Diffusers checkpoint.
+- **T2I:** Change `flux2.model_id` to another mflux-supported model (e.g., `mlx-community/FLUX.2-Klein-4B-8bit` for higher quality).
 - **I2T:** Change `model_id` to any `mlx-community` quantized VLM (e.g., Qwen2.5-VL-3B, Gemma-3-4B).
 
 Then run `make download-models` again.
@@ -232,9 +293,9 @@ Then run `make download-models` again.
 
 ## License Considerations
 
+- **FLUX.2 [klein] 4B:** Apache 2.0 (commercial-safe)
 - **SmolVLM:** Apache 2.0
-- **Stable Diffusion 1.5:** CreativeML Open RAIL-M
-- **Qwen2.5-VL:** Qwen License (read terms before commercial use)
+- **Stable Diffusion 1.5:** CreativeML Open RAIL-M (legacy)
 - **Generated outputs:** Subject to model license terms; review before redistribution.
 
 ## Makefile Commands

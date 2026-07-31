@@ -21,6 +21,7 @@ from api.schemas import (
     TextToImageRequest,
     VisionResult,
 )
+from services.flux2_text_to_image import Flux2TextToImageService
 from services.image_to_text import ImageToTextService
 from services.memory_manager import MemoryManager
 from services.text_to_image import TextToImageService
@@ -46,16 +47,31 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         idle_timeout_seconds=float(os.getenv("IDLE_TIMEOUT_SECONDS", "300")),
     )
 
-    t2i = TextToImageService(
-        model_id=t2i_cfg.get("model_id", "runwayml/stable-diffusion-v1-5"),
-        device=t2i_cfg.get("device", "mps"),
-        dtype=t2i_cfg.get("dtype", "float16"),
-        safety_checker=t2i_cfg.get("safety_checker", False),
-        attention_slicing=t2i_cfg.get("attention_slicing", True),
-        vae_slicing=t2i_cfg.get("vae_slicing", True),
-        cpu_offload=t2i_cfg.get("cpu_offload", False),
-        outputs_dir="outputs/text_to_image",
-    )
+    backend = t2i_cfg.get("backend", "sd15")
+    hf_home = os.getenv("HF_HOME", str(Path("models/huggingface").resolve()))
+
+    if backend == "flux2":
+        flux_cfg = t2i_cfg.get("flux2", {})
+        t2i = Flux2TextToImageService(
+            outputs_dir="outputs/text_to_image",
+            hf_home=hf_home,
+            low_ram=flux_cfg.get("low_ram", True),
+            mlx_cache_limit_gb=flux_cfg.get("mlx_cache_limit_gb", 8.0),
+        )
+        logger.info("Using FLUX.2 [klein] 4B backend (mflux subprocess)")
+    else:
+        sd_cfg = t2i_cfg.get("sd15", {})
+        t2i = TextToImageService(
+            model_id=sd_cfg.get("model_id", "runwayml/stable-diffusion-v1-5"),
+            device=sd_cfg.get("device", "mps"),
+            dtype=sd_cfg.get("dtype", "float16"),
+            safety_checker=sd_cfg.get("safety_checker", False),
+            attention_slicing=sd_cfg.get("attention_slicing", True),
+            vae_slicing=sd_cfg.get("vae_slicing", True),
+            cpu_offload=sd_cfg.get("cpu_offload", False),
+            outputs_dir="outputs/text_to_image",
+        )
+        logger.info("Using SD 1.5 backend (Diffusers + MPS)")
 
     i2t = ImageToTextService(
         model_id=i2t_cfg.get("model_id", "mlx-community/SmolVLM-256M-Instruct-4bit"),
@@ -112,8 +128,8 @@ async def system_memory(request: Request) -> SystemStatus:
 async def models_status(request: Request) -> ModelStatus:
     mm: MemoryManager = request.app.state.memory_manager
     data = mm.get_memory_status()
-    t2i: TextToImageService = request.app.state.text_to_image
-    i2t: ImageToTextService = request.app.state.image_to_text
+    t2i = request.app.state.text_to_image
+    i2t = request.app.state.image_to_text
     return ModelStatus(
         pipelines={
             "text_to_image": t2i.is_loaded(),
@@ -127,7 +143,7 @@ async def models_status(request: Request) -> ModelStatus:
 async def images_generate(request: Request, body: TextToImageRequest) -> GeneratedImage:
     mm: MemoryManager = request.app.state.memory_manager
     mm.acquire("text_to_image")
-    svc: TextToImageService = request.app.state.text_to_image
+    svc = request.app.state.text_to_image
     try:
         result = svc.generate(
             prompt=body.prompt,

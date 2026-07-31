@@ -53,19 +53,21 @@ class TextToImageService:
 
         kwargs: dict = {
             "pretrained_model_name_or_path": self.model_id,
-            "torch_dtype": self.dtype,
-            "safety_checker": None if not self.safety_checker else "",
+            "safety_checker": None,
+            "requires_safety_checker": False,
         }
 
-        # Remove safety_checker key entirely if disabled, to avoid noisy warnings
-        if not self.safety_checker:
-            kwargs.pop("safety_checker", None)
+        # MPS fp16 VAE produces NaN/black images and dtype mismatches.
+        # Load in fp32 for stability on Apple Silicon.
+        if self.device.type == "mps":
+            kwargs["torch_dtype"] = torch.float32
+            logger.info("Loading pipeline in float32 for MPS stability")
+        else:
+            kwargs["torch_dtype"] = self.dtype
 
         self._pipe = StableDiffusionPipeline.from_pretrained(
             kwargs.pop("pretrained_model_name_or_path"),
-            torch_dtype=kwargs.get("torch_dtype"),
-            safety_checker=None,
-            requires_safety_checker=False,
+            **kwargs,
         )
 
         if self.attention_slicing:

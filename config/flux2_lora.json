@@ -1,0 +1,44 @@
+{
+  "training": {
+    "base_model": "flux2-klein-4b",
+    "model_id": "mlx-community/FLUX.2-Klein-4B-4bit",
+    "quantize": 4,
+    "lora": {
+      "rank": 8,
+      "alpha": 16,
+      "dropout": 0.05,
+      "target_modules": ["to_q", "to_k", "to_v", "to_out"]
+    },
+    "optimizer": {
+      "type": "adamw",
+      "learning_rate": 1e-4,
+      "betas": [0.9, 0.999],
+      "weight_decay": 0.01
+    },
+    "scheduler": {
+      "type": "cosine",
+      "warmup_steps": 100
+    },
+    "dataset": {
+      "type": "image_text_pair",
+      "train_data_dir": "datasets/text_to_image/images",
+      "train_metadata": "datasets/text_to_image/metadata.jsonl",
+      "resolution": 512,
+      "center_crop": true,
+      "random_flip": true
+    },
+    "training_params": {
+      "batch_size": 1,
+      "gradient_accumulation_steps": 4,
+      "max_grad_norm": 1.0,
+      "epochs": 1,
+      "save_steps": 500,
+      "logging_steps": 10,
+      "mixed_precision": true
+    },
+    "output": {
+      "output_dir": "adapters/text_to_image/flux2_lora",
+      "save_metadata": true
+    }
+  }
+}
