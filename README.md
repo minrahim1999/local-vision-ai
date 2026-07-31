@@ -110,6 +110,83 @@ HF_HOME=$(pwd)/models/huggingface \
   uv run python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
 ```
 
+## Desktop App
+
+A Flet-based desktop GUI is included. It requires the API server running.
+
+```bash
+make run-desktop
+```
+
+Or directly:
+
+```bash
+uv run python -m app.desktop
+```
+
+Features:
+- **Generate Image** tab: Enter prompt, set resolution/steps, see generated image inline
+- **Analyze Image** tab: Browse for image, enter prompt, get text/JSON result
+- **System Status** tab: Live memory, model loading, and health display
+
+## CLI Usage
+
+The CLI works in two modes:
+- **Via API** (default) — sends requests to the running server
+- **Direct** (`--no-server`) — loads models locally, no server needed
+
+### Check backends
+
+```bash
+lvai-cli backend
+```
+
+### Generate image (via API)
+
+```bash
+lvai-cli generate "A cat on a sofa" --width 512 --height 512 --seed 1337
+```
+
+### Generate image (direct, no server)
+
+```bash
+lvai-cli generate "A cat on a sofa" --width 512 --height 512 --no-server
+```
+
+### Analyze image (via API)
+
+```bash
+lvai-cli analyze photo.jpg --prompt "Describe this image"
+```
+
+### Analyze image (direct)
+
+```bash
+lvai-cli analyze photo.jpg --prompt "Describe this image" --no-server
+```
+
+### Extract JSON (via API)
+
+```bash
+lvai-cli extract photo.jpg --prompt "Extract objects and colors as JSON"
+```
+
+### Check API health
+
+```bash
+lvai-cli health
+```
+
+### Makefile CLI shortcuts
+
+```bash
+make cli-generate PROMPT="A futuristic robot" WIDTH=512 HEIGHT=512
+make cli-analyze IMAGE=photo.jpg PROMPT="Describe this"
+make cli-extract IMAGE=photo.jpg PROMPT="Extract objects"
+make cli-health
+make cli-backend
+```
+
 ## Example curl Commands
 
 ### Text-to-Image (FLUX.2)

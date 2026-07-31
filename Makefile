@@ -1,5 +1,5 @@
 # Local Vision AI — Makefile
-.PHONY: setup audit download-models run test benchmark train-vlm-smoke train-vlm evaluate-vlm clean-cache generate-flux2
+.PHONY: setup audit download-models run test benchmark train-vlm-smoke train-vlm evaluate-vlm clean-cache generate-flux2 run-desktop cli-generate cli-analyze cli-extract cli-health cli-backend
 
 PYTHON := uv run python
 VENV := .venv
@@ -7,7 +7,7 @@ HF_HOME := $(shell pwd)/models/huggingface
 
 setup:
 	uv venv --python 3.11
-	uv pip install -e ".[text_to_image,image_to_text,unsloth,dev]"
+	uv pip install -e ".[text_to_image,image_to_text,unsloth,dev,desktop]"
 	uv pip install mflux
 	@echo "Setup complete. Copy .env.example to .env and edit."
 
@@ -44,6 +44,26 @@ train-vlm:
 
 evaluate-vlm:
 	$(PYTHON) -m training.image_to_text.evaluate --adapter adapters/image-to-text
+
+# Desktop app
+run-desktop:
+	$(PYTHON) -m app.desktop
+
+# CLI shortcuts (requires API running)
+cli-generate:
+	lvai-cli generate "$(PROMPT)" --width $(or $(WIDTH),512) --height $(or $(HEIGHT),512)
+
+cli-analyze:
+	lvai-cli analyze "$(IMAGE)" --prompt "$(PROMPT)"
+
+cli-extract:
+	lvai-cli extract "$(IMAGE)" --prompt "$(PROMPT)"
+
+cli-health:
+	lvai-cli health
+
+cli-backend:
+	lvai-cli backend
 
 clean-cache:
 	rm -rf outputs/cache/* outputs/text_to_image/* benchmarks/*.png benchmarks/*.jpg
