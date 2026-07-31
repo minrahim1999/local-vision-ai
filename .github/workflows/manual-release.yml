@@ -15,6 +15,10 @@ on:
         description: 'Mark as pre-release'
         type: boolean
         default: false
+      create_tag:
+        description: 'Create git tag if it does not exist'
+        type: boolean
+        default: true
 
 env:
   PYTHON_VERSION: '3.11'
@@ -34,7 +38,6 @@ jobs:
         id: parse
         run: |
           RAW="${{ github.event.inputs.version }}"
-          # Strip leading 'v' if present, then re-add it for tag
           VERSION="${RAW#v}"
           TAG="v${VERSION}"
           RELEASE_NAME="Local Vision AI ${TAG}"
@@ -48,6 +51,7 @@ jobs:
   # --------------------------------------------------------------------------
   create-tag:
     needs: meta
+    if: github.event.inputs.create_tag == 'true'
     runs-on: ubuntu-latest
     outputs:
       created: ${{ steps.tag.outputs.created }}
@@ -56,6 +60,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
 
       - name: Create or verify tag
         id: tag
@@ -69,7 +74,6 @@ jobs:
             echo "created=false" >> $GITHUB_OUTPUT
           else
             echo "Creating annotated tag $TAG..."
-            # Use latest commit on current branch
             COMMIT=$(git rev-parse HEAD)
             git tag -a "$TAG" "$COMMIT" -m "Release $TAG"
             git push origin "$TAG"
@@ -82,6 +86,7 @@ jobs:
   # --------------------------------------------------------------------------
   build-macos:
     needs: [meta, create-tag]
+    if: always() && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped')
     runs-on: macos-14
     steps:
       - name: Checkout at tag
@@ -110,6 +115,11 @@ jobs:
       - name: Build .app
         run: .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
 
+      - name: Verify build
+        run: |
+          test -d dist/LocalVisionAI.app || { echo "Build failed: no .app"; exit 1; }
+          ls dist/LocalVisionAI.app/Contents/Resources/assets/icons/ || true
+
       - name: Create DMG
         run: |
           mkdir -p dist/dmg_staging
@@ -124,12 +134,14 @@ jobs:
         with:
           name: macos-release
           path: dist/LocalVisionAI-*-macOS.dmg
+          if-no-files-found: error
 
   # --------------------------------------------------------------------------
   # Windows
   # --------------------------------------------------------------------------
   build-windows:
     needs: [meta, create-tag]
+    if: always() && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped')
     runs-on: windows-latest
     steps:
       - name: Checkout at tag
@@ -159,6 +171,10 @@ jobs:
       - name: Build EXE
         run: .venv\Scripts\pyinstaller app/desktop.spec --clean --noconfirm
 
+      - name: Verify build
+        shell: bash
+        run: test -d dist/LocalVisionAI/ || { echo "Build failed"; exit 1; }
+
       - name: Create ZIP
         run: |
           cd dist\LocalVisionAI
@@ -169,12 +185,14 @@ jobs:
         with:
           name: windows-release
           path: dist/LocalVisionAI-*-Windows.zip
+          if-no-files-found: error
 
   # --------------------------------------------------------------------------
   # Linux
   # --------------------------------------------------------------------------
   build-linux:
     needs: [meta, create-tag]
+    if: always() && (needs.create-tag.result == 'success' || needs.create-tag.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout at tag
@@ -208,6 +226,9 @@ jobs:
       - name: Build binary
         run: .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
 
+      - name: Verify build
+        run: test -d dist/LocalVisionAI/ || { echo "Build failed"; exit 1; }
+
       - name: Create tarball
         run: |
           cd dist && tar -czf "LocalVisionAI-${{ needs.meta.outputs.tag }}-Linux.tar.gz" LocalVisionAI/
@@ -217,42 +238,73 @@ jobs:
         with:
           name: linux-release
           path: dist/LocalVisionAI-*-Linux.tar.gz
+          if-no-files-found: error
 
   # --------------------------------------------------------------------------
   # Create GitHub Release
   # --------------------------------------------------------------------------
   release:
     needs: [meta, create-tag, build-macos, build-windows, build-linux]
+    if: always() && needs.build-macos.result == 'success' && needs.build-windows.result == 'success' && needs.build-linux.result == 'success'
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - name: Checkout
+      - name: Checkout at tag
         uses: actions/checkout@v4
         with:
           ref: ${{ needs.meta.outputs.tag }}
           fetch-depth: 0
 
-      - name: Generate release notes
+      - name: Generate release notes from CHANGELOG
         id: notes
         run: |
           TAG="${{ needs.meta.outputs.tag }}"
-          # Try to extract changelog section
-          sed -n "/^## \[${TAG#v}\]/,/^## \[/p" CHANGELOG.md | sed '$d' > release_notes.md || true
-          if [ ! -s release_notes.md ]; then
-            echo "### Release ${TAG}" > release_notes.md
-            echo "" >> release_notes.md
-            echo "Binaries built automatically via GitHub Actions." >> release_notes.md
-          fi
-          cat release_notes.md
+          VERSION="${TAG#v}"
+          NOTES_FILE="release_notes.md"
 
-      - name: Download artifacts
+          # Try to extract changelog section with Python script
+          if [ -f .github/scripts/extract_changelog.py ]; then
+            python3 .github/scripts/extract_changelog.py "$VERSION" CHANGELOG.md > extracted.md
+            if [ -s extracted.md ]; then
+              echo "### Local Vision AI ${TAG}" > "$NOTES_FILE"
+              echo "" >> "$NOTES_FILE"
+              cat extracted.md >> "$NOTES_FILE"
+            else
+              echo "No CHANGELOG section found for ${VERSION}. Using fallback."
+              echo "### Local Vision AI ${TAG}" > "$NOTES_FILE"
+              echo "" >> "$NOTES_FILE"
+              echo "Binaries built automatically via GitHub Actions." >> "$NOTES_FILE"
+            fi
+          else
+            # Fallback: sed extraction
+            sed -n "/^## \[${VERSION}\]/,/^## \[/p" CHANGELOG.md | sed '$d' > extracted.md || true
+            if [ -s extracted.md ]; then
+              cat extracted.md > "$NOTES_FILE"
+            else
+              echo "### Local Vision AI ${TAG}" > "$NOTES_FILE"
+              echo "" >> "$NOTES_FILE"
+              echo "Binaries built automatically via GitHub Actions." >> "$NOTES_FILE"
+            fi
+          fi
+
+          echo "--- Release Notes ---"
+          cat "$NOTES_FILE"
+
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: List artifacts
-        run: find artifacts -type f -ls
+      - name: Verify artifacts
+        run: |
+          echo "Artifacts downloaded:"
+          find artifacts -type f -ls
+          echo ""
+          echo "Sizes:"
+          du -sh artifacts/*/* 2>/dev/null || true
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.meta.outputs.tag }}
@@ -260,7 +312,7 @@ jobs:
           body_path: release_notes.md
           draft: ${{ github.event.inputs.draft }}
           prerelease: ${{ github.event.inputs.prerelease }}
-          generate_release_notes: true
+          generate_release_notes: false
           files: |
             artifacts/macos-release/*
             artifacts/windows-release/*

@@ -1,73 +1,34 @@
-name: Build and Release
+name: Release
 
 on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: 'Version tag to build (e.g., v0.2.0)'
-        required: true
-        default: 'v0.2.0'
-      create_tag:
-        description: 'Create tag if it does not exist'
-        required: true
-        default: 'false'
-        type: choice
-        options: ['true', 'false']
-      draft:
-        description: 'Create as draft release'
-        required: true
-        default: 'true'
-        type: choice
-        options: ['true', 'false']
 
 env:
   PYTHON_VERSION: '3.11'
 
 jobs:
   # --------------------------------------------------------------------------
-  # Metadata / shared vars
+  # Metadata
   # --------------------------------------------------------------------------
   meta:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.get_version.outputs.version }}
-      tag: ${{ steps.get_version.outputs.tag }}
-      release_name: ${{ steps.get_version.outputs.release_name }}
+      tag: ${{ steps.get.outputs.tag }}
+      version: ${{ steps.get.outputs.version }}
+      release_name: ${{ steps.get.outputs.release_name }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Determine version
-        id: get_version
+      - name: Get version from tag
+        id: get
         run: |
-          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref_type }}" = "tag" ]; then
-            TAG="${{ github.ref_name }}"
-          else
-            TAG="${{ github.event.inputs.tag }}"
-          fi
+          TAG="${{ github.ref_name }}"
           VERSION="${TAG#v}"
           RELEASE_NAME="Local Vision AI ${TAG}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
           echo "Building ${RELEASE_NAME}"
-
-      - name: Create tag if requested
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.create_tag == 'true'
-        run: |
-          TAG="${{ github.event.inputs.tag }}"
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists."
-          else
-            git tag -a "$TAG" -m "Release $TAG"
-            git push origin "$TAG"
-            echo "Created and pushed tag $TAG"
-          fi
 
   # --------------------------------------------------------------------------
   # macOS
@@ -76,8 +37,10 @@ jobs:
     needs: meta
     runs-on: macos-14
     steps:
-      - name: Checkout
+      - name: Checkout at tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -92,35 +55,34 @@ jobs:
           uv pip install -e ".[dev,desktop]"
           uv pip install pyinstaller
 
-      - name: Inject version into desktop.py
+      - name: Inject version
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
           sed -i '' "s/Local Vision AI v.*/Local Vision AI v${VERSION}/g" app/desktop.py
 
-      - name: Build macOS .app
-        run: |
-          .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
+      - name: Build .app
+        run: .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
 
-      - name: Verify .app bundle
+      - name: Verify build
         run: |
-          ls -la dist/LocalVisionAI.app/Contents/MacOS/
-          ls dist/LocalVisionAI.app/Contents/Resources/ | grep -i icon || true
+          test -d dist/LocalVisionAI.app || { echo "Build failed: no .app"; exit 1; }
+          ls dist/LocalVisionAI.app/Contents/Resources/assets/icons/ || true
 
       - name: Create DMG
         run: |
           mkdir -p dist/dmg_staging
-          cp -r "dist/LocalVisionAI.app" "dist/dmg_staging/LocalVisionAI.app"
+          cp -r dist/LocalVisionAI.app dist/dmg_staging/
           hdiutil create -volname "Local Vision AI" \
-            -srcfolder "dist/dmg_staging" \
+            -srcfolder dist/dmg_staging \
             -ov -format UDZO \
             "dist/LocalVisionAI-${{ needs.meta.outputs.tag }}-macOS.dmg"
-          ls -lh "dist/LocalVisionAI-${{ needs.meta.outputs.tag }}-macOS.dmg"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: macos-release
           path: dist/LocalVisionAI-*-macOS.dmg
+          if-no-files-found: error
 
   # --------------------------------------------------------------------------
   # Windows
@@ -129,8 +91,10 @@ jobs:
     needs: meta
     runs-on: windows-latest
     steps:
-      - name: Checkout
+      - name: Checkout at tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -145,33 +109,30 @@ jobs:
           uv pip install -e ".[dev,desktop]"
           uv pip install pyinstaller
 
-      - name: Inject version into desktop.py
+      - name: Inject version
         shell: bash
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
           sed -i "s/Local Vision AI v.*/Local Vision AI v${VERSION}/g" app/desktop.py
 
-      - name: Build Windows executable
-        run: |
-          .venv\Scripts\pyinstaller app/desktop.spec --clean --noconfirm
+      - name: Build EXE
+        run: .venv\Scripts\pyinstaller app/desktop.spec --clean --noconfirm
 
       - name: Verify build
         shell: bash
-        run: |
-          ls -la dist/LocalVisionAI/
+        run: test -d dist/LocalVisionAI/ || { echo "Build failed"; exit 1; }
 
       - name: Create ZIP
         run: |
           cd dist\LocalVisionAI
           7z a -tzip ..\LocalVisionAI-${{ needs.meta.outputs.tag }}-Windows.zip *
-          cd ..
-          ls LocalVisionAI-${{ needs.meta.outputs.tag }}-Windows.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: windows-release
           path: dist/LocalVisionAI-*-Windows.zip
+          if-no-files-found: error
 
   # --------------------------------------------------------------------------
   # Linux
@@ -180,8 +141,10 @@ jobs:
     needs: meta
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout at tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
 
       - name: Install system deps
         run: |
@@ -201,73 +164,100 @@ jobs:
           uv pip install -e ".[dev,desktop]"
           uv pip install pyinstaller
 
-      - name: Inject version into desktop.py
+      - name: Inject version
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
           sed -i "s/Local Vision AI v.*/Local Vision AI v${VERSION}/g" app/desktop.py
 
-      - name: Build Linux executable
-        run: |
-          .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
+      - name: Build binary
+        run: .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
 
       - name: Verify build
-        run: |
-          ls -la dist/LocalVisionAI/
+        run: test -d dist/LocalVisionAI/ || { echo "Build failed"; exit 1; }
 
       - name: Create tarball
         run: |
           cd dist && tar -czf "LocalVisionAI-${{ needs.meta.outputs.tag }}-Linux.tar.gz" LocalVisionAI/
-          ls -lh "LocalVisionAI-${{ needs.meta.outputs.tag }}-Linux.tar.gz"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: linux-release
           path: dist/LocalVisionAI-*-Linux.tar.gz
+          if-no-files-found: error
 
   # --------------------------------------------------------------------------
   # Create GitHub Release
   # --------------------------------------------------------------------------
-  create-release:
+  release:
     needs: [meta, build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_tag == 'true')
+    permissions:
+      contents: write
     steps:
-      - name: Checkout
+      - name: Checkout at tag
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.meta.outputs.tag }}
           fetch-depth: 0
 
-      - name: Generate release notes
+      - name: Generate release notes from CHANGELOG
         id: notes
         run: |
           TAG="${{ needs.meta.outputs.tag }}"
-          # Extract changelog section for this version
-          sed -n "/^## \[${TAG#v}\]/,/^## \[/p" CHANGELOG.md | sed '$d' > release_notes.md || true
-          if [ ! -s release_notes.md ]; then
-            echo "### Release ${TAG}" > release_notes.md
-            echo "" >> release_notes.md
-            echo "Binaries built automatically via GitHub Actions." >> release_notes.md
+          VERSION="${TAG#v}"
+          NOTES_FILE="release_notes.md"
+
+          # Try to extract changelog section with Python script
+          if [ -f .github/scripts/extract_changelog.py ]; then
+            python3 .github/scripts/extract_changelog.py "$VERSION" CHANGELOG.md > extracted.md
+            if [ -s extracted.md ]; then
+              echo "### Local Vision AI ${TAG}" > "$NOTES_FILE"
+              echo "" >> "$NOTES_FILE"
+              cat extracted.md >> "$NOTES_FILE"
+            else
+              echo "No CHANGELOG section found for ${VERSION}. Using fallback."
+              echo "### Local Vision AI ${TAG}" > "$NOTES_FILE"
+              echo "" >> "$NOTES_FILE"
+              echo "Binaries built automatically via GitHub Actions." >> "$NOTES_FILE"
+            fi
+          else
+            # Fallback: sed extraction
+            sed -n "/^## \[${VERSION}\]/,/^## \[/p" CHANGELOG.md | sed '$d' > extracted.md || true
+            if [ -s extracted.md ]; then
+              cat extracted.md > "$NOTES_FILE"
+            else
+              echo "### Local Vision AI ${TAG}" > "$NOTES_FILE"
+              echo "" >> "$NOTES_FILE"
+              echo "Binaries built automatically via GitHub Actions." >> "$NOTES_FILE"
+            fi
           fi
-          cat release_notes.md
+
+          echo "--- Release Notes ---"
+          cat "$NOTES_FILE"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
-      - name: List artifacts
+      - name: Verify artifacts
         run: |
+          echo "Artifacts downloaded:"
           find artifacts -type f -ls
+          echo ""
+          echo "Sizes:"
+          du -sh artifacts/*/* 2>/dev/null || true
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.meta.outputs.tag }}
           name: ${{ needs.meta.outputs.release_name }}
           body_path: release_notes.md
-          draft: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.draft == 'true' || true }}
-          generate_release_notes: true
+          draft: false
+          prerelease: false
+          generate_release_notes: false
           files: |
             artifacts/macos-release/*
             artifacts/windows-release/*
