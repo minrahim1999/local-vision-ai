@@ -26,6 +26,8 @@ class LvaiDesktopApp:
         self.page.window_width = 1200
         self.page.window_height = 800
         self.page.padding = 24
+        # Set window icon (works on Windows/Linux; macOS uses .app icon)
+        self.page.window_icon = str(Path(__file__).resolve().parent.parent / "assets" / "icons" / "icon_256.png")
 
         self._build_ui()
         self._check_api()

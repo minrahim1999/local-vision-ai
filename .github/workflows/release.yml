@@ -1,0 +1,139 @@
+name: Build Release Binaries
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Version tag (e.g., v0.2.0)'
+        required: true
+        default: 'v0.2.0'
+
+jobs:
+  build-macos:
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Setup Python
+        run: uv venv --python 3.11
+
+      - name: Install dependencies
+        run: |
+          uv pip install -e ".[dev,desktop]"
+          uv pip install pyinstaller
+
+      - name: Build macOS app
+        run: |
+          .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
+          mkdir -p dist/dmg
+          cp -r dist/LocalVisionAI.app dist/dmg/LocalVisionAI.app
+          # Create DMG (using create-dmg if available, else zip)
+          if command -v create-dmg >/dev/null; then
+            create-dmg \
+              --volname "Local Vision AI" \
+              --window-pos 200 120 \
+              --window-size 600 400 \
+              --icon-size 100 \
+              --app-drop-link 450 185 \
+              "dist/LocalVisionAI-${{ github.ref_name }}-macOS.dmg" \
+              "dist/dmg/"
+          else
+            cd dist && zip -r "LocalVisionAI-${{ github.ref_name }}-macOS.zip" LocalVisionAI.app
+          fi
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-release
+          path: dist/*.dmg
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+          echo "$env:USERPROFILE\.cargo\bin" >> $env:GITHUB_PATH
+
+      - name: Setup Python
+        run: uv venv --python 3.11
+
+      - name: Install dependencies
+        run: |
+          uv pip install -e ".[dev,desktop]"
+          uv pip install pyinstaller
+
+      - name: Build Windows EXE
+        run: |
+          .venv\Scripts\pyinstaller app/desktop.spec --clean --noconfirm
+          cd dist\LocalVisionAI
+          7z a -tzip ..\LocalVisionAI-${{ github.ref_name }}-Windows.zip *
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-release
+          path: dist/*.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Setup Python
+        run: uv venv --python 3.11
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libgstreamer-plugins-base1.0-dev
+          uv pip install -e ".[dev,desktop]"
+          uv pip install pyinstaller
+
+      - name: Build Linux AppImage
+        run: |
+          .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
+          # Package as tar.gz (AppImage requires more tooling)
+          cd dist && tar -czf "LocalVisionAI-${{ github.ref_name }}-Linux.tar.gz" LocalVisionAI/
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-release
+          path: dist/*.tar.gz
+
+  create-release:
+    needs: [build-macos, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            macos-release/*
+            windows-release/*
+            linux-release/*
+          draft: true
+          generate_release_notes: true

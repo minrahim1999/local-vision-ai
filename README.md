@@ -124,6 +124,32 @@ Or directly:
 uv run python -m app.desktop
 ```
 
+For a **standalone** experience (API + GUI in one window):
+
+```bash
+lvai-standalone
+```
+
+Or:
+
+```bash
+uv run python -m app.standalone
+```
+
+### Building Release Binaries
+
+Build `.app` (macOS), `.exe` (Windows), or tarball (Linux) for distribution:
+
+```bash
+# Local build (macOS)
+bash scripts/build_releases.sh v0.2.0
+
+# GitHub Actions (all platforms)
+git tag v0.2.0
+git push origin v0.2.0
+# GitHub Actions automatically builds and attaches artifacts to release
+```
+
 Features:
 - **Generate Image** tab: Enter prompt, set resolution/steps, see generated image inline
 - **Analyze Image** tab: Browse for image, enter prompt, get text/JSON result

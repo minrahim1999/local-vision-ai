@@ -1,5 +1,5 @@
 # Local Vision AI — Makefile
-.PHONY: setup audit download-models run test benchmark train-vlm-smoke train-vlm evaluate-vlm clean-cache generate-flux2 run-desktop cli-generate cli-analyze cli-extract cli-health cli-backend
+.PHONY: setup audit download-models run test benchmark train-vlm-smoke train-vlm evaluate-vlm clean-cache generate-flux2 run-desktop cli-generate cli-analyze cli-extract cli-health cli-backend build-release
 
 PYTHON := uv run python
 VENV := .venv
@@ -64,6 +64,9 @@ cli-health:
 
 cli-backend:
 	lvai-cli backend
+
+build-release:
+	bash scripts/build_releases.sh $(or $(VERSION),v0.2.0)
 
 clean-cache:
 	rm -rf outputs/cache/* outputs/text_to_image/* benchmarks/*.png benchmarks/*.jpg
