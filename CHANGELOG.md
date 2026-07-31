@@ -4,6 +4,17 @@ All notable changes to Local Vision AI are documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `.github/workflows/manual-release.yml` — manual trigger workflow with tag auto-creation
+- `scripts/update_changelog.sh` — auto-generate changelog entries from git commits
+- `docs/CHANGELOG_TEMPLATE.md` — release notes template and checklist
+
+### Changed
+- `.github/workflows/release.yml` — improved: shared metadata job, version injection, DMG creation, artifact verification
+- Release workflows now checkout at tag ref for reproducible builds
+- `softprops/action-gh-release` upgraded from v1 to v2
+- `astral-sh/setup-uv@v5` replaces manual curl install
+
 ## [0.2.0] — 2026-07-31
 
 ### Added
