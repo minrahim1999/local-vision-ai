@@ -23,12 +23,6 @@ classifiers = [
     "Topic :: Multimedia :: Graphics",
 ]
 
-[project.urls]
-Homepage = "https://github.com/minrahim1999/local-vision-ai"
-Repository = "https://github.com/minrahim1999/local-vision-ai"
-Issues = "https://github.com/minrahim1999/local-vision-ai/issues"
-Changelog = "https://github.com/minrahim1999/local-vision-ai/blob/main/CHANGELOG.md"
-
 dependencies = [
     "fastapi>=0.111",
     "uvicorn[standard]>=0.30",
@@ -41,6 +35,12 @@ dependencies = [
     "python-multipart>=0.0.9",
     "numpy<2.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/minrahim1999/local-vision-ai"
+Repository = "https://github.com/minrahim1999/local-vision-ai"
+Issues = "https://github.com/minrahim1999/local-vision-ai/issues"
+Changelog = "https://github.com/minrahim1999/local-vision-ai/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 text_to_image = [
