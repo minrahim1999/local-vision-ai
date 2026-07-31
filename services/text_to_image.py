@@ -186,7 +186,10 @@ class TextToImageService:
             "seed": seed,
             "duration_seconds": round(duration, 3),
         }
-        image.save(output_path, pnginfo={"Description": str(metadata)})
+        from PIL.PngImagePlugin import PngInfo
+        png_info = PngInfo()
+        png_info.add_text("Description", str(metadata))
+        image.save(output_path, pnginfo=png_info)
 
         return GeneratedImage(
             prompt=prompt,

@@ -23,7 +23,7 @@ SUPPORTED_FORMATS = {"png", "jpg", "jpeg", "webp", "gif", "bmp"}
 class ImageToTextService:
     def __init__(
         self,
-        model_id: str = "mlx-community/smolvlm-256m-8bit",
+        model_id: str = "mlx-community/SmolVLM-256M-Instruct-4bit",
         max_tokens: int = 512,
         temperature: float = 0.2,
         top_p: float = 0.9,
@@ -89,12 +89,12 @@ class ImageToTextService:
             raise ValueError(f"Cannot open image: {exc}") from exc
 
         if img.format is None or img.format.lower() not in {
-            "PNG",
-            "JPEG",
-            "JPG",
-            "WEBP",
-            "GIF",
-            "BMP",
+            "png",
+            "jpeg",
+            "jpg",
+            "webp",
+            "gif",
+            "bmp",
         }:
             raise ValueError(f"Unsupported or unknown image format: {img.format}")
 
@@ -120,12 +120,13 @@ class ImageToTextService:
         img = self._validate_image(image_path)
 
         start = time.monotonic()
+        prompt_with_image = f"<image> {prompt}"
         try:
             output = generate(
                 self._model,
                 self._processor,
                 image=image_path,
-                prompt=prompt,
+                prompt=prompt_with_image,
                 max_tokens=max_tokens,
                 temp=self.temperature,
                 top_p=self.top_p,
@@ -136,7 +137,11 @@ class ImageToTextService:
             raise RuntimeError(f"Image-to-text generation failed: {exc}") from exc
 
         duration = time.monotonic() - start
-        response_text = output.strip()
+        # Handle both string and GenerationResult objects
+        if hasattr(output, "text"):
+            response_text = output.text
+        else:
+            response_text = str(output).strip()
 
         if response_format == "json":
             response_text = self._extract_json(response_text)

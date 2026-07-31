@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     )
 
     i2t = ImageToTextService(
-        model_id=i2t_cfg.get("model_id", "mlx-community/smolvlm-256m-8bit"),
+        model_id=i2t_cfg.get("model_id", "mlx-community/SmolVLM-256M-Instruct-4bit"),
         max_tokens=i2t_cfg.get("max_tokens", 512),
         temperature=i2t_cfg.get("temperature", 0.2),
         top_p=i2t_cfg.get("top_p", 0.9),
