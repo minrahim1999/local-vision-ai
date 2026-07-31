@@ -49,6 +49,13 @@ evaluate-vlm:
 run-desktop:
 	$(PYTHON) -m app.desktop
 
+run-standalone:
+	$(PYTHON) -m app.standalone
+
+# Build release binaries (.app, .exe, tarball)
+build-release:
+	bash scripts/build_releases.sh $(or $(VERSION),v0.2.0)
+
 # CLI shortcuts (requires API running)
 cli-generate:
 	lvai-cli generate "$(PROMPT)" --width $(or $(WIDTH),512) --height $(or $(HEIGHT),512)

@@ -2,9 +2,20 @@
 
 All notable changes to Local Vision AI are documented in this file.
 
+## [Unreleased]
+
 ## [0.2.0] — 2026-07-31
 
 ### Added
+- **Release build system** — standalone binaries for all platforms
+  - `app/standalone.py` — auto-starts API then opens GUI in one process
+  - `app/desktop.spec` — PyInstaller spec with icon bundling
+  - `scripts/build_releases.sh` — local build script (macOS DMG, Windows zip, Linux tar.gz)
+  - `.github/workflows/release.yml` — GitHub Actions CI for automated releases
+  - Desktop app window icon (`page.window_icon`) for Windows/Linux
+- **Custom app icon** — generated icon set (16×16 to 1024×1024) in `assets/icons/`
+  - macOS `.icns` bundle, Windows `.ico`, and PNG set for all resolutions
+  - Icon bundled into PyInstaller `.app` via `CFBundleIconFile`
 - Cross-platform backend auto-detection system
   - `AppleFlux2Backend` for macOS Apple Silicon (FLUX.2 via mflux)
   - `DiffusersBackend` for Windows/Linux/NVIDIA (SD 2.1 via Diffusers)
@@ -18,10 +29,14 @@ All notable changes to Local Vision AI are documented in this file.
 - Config split: `apple_silicon` extras separated from base dependencies in `pyproject.toml`
 
 ### Changed
-- `README.md` updated with platform support matrix and backend comparison
+- `README.md` completely rewritten with hero section, badges, quick-start, download table, and troubleshooting
 - `config/text_to_image.yaml` now includes both `flux2` and `sd15` sections
 - `config/image_to_text.yaml` now includes both `smolvlm` and `qwen` sections
 - `Makefile` `audit` target now runs both environment and cross-platform checks
+
+### Fixed
+- Desktop GUI title bar now shows app name correctly on all platforms
+- Standalone launcher properly shuts down API on exit (`terminate` + `kill` fallback)
 
 ## [0.1.0] — 2026-07-31
 

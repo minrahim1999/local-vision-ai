@@ -1,15 +1,89 @@
 # Local Vision AI
 
-Production-structured local multimodal AI for Apple Silicon.
+<p align="center">
+  <img src="assets/icons/icon_256.png" width="128" alt="Local Vision AI icon">
+</p>
 
-## Purpose
+<p align="center">
+  <strong>Production-structured local multimodal AI</strong><br>
+  Text-to-Image and Image-to-Text on Apple Silicon, Windows, and Linux
+</p>
 
-Local Vision AI provides two local inference pipelines on your Mac:
+<p align="center">
+  <a href="#installation">Install</a> •
+  <a href="#desktop-app">Desktop App</a> •
+  <a href="#cli-usage">CLI</a> •
+  <a href="#api">API</a> •
+  <a href="#releases">Download</a>
+</p>
 
-1. **Text-to-Image** — Generate photorealistic images from prompts using **FLUX.2 [klein] 4B** (via MLX).
-2. **Image-to-Text** — Analyze images, caption them, answer visual questions, and extract structured JSON using **SmolVLM 256M** (via MLX-VLM).
+---
 
-Everything runs on-device. No cloud API keys required.
+## What is Local Vision AI?
+
+Local Vision AI runs entirely on your device — no cloud API keys, no subscription fees, no data leaving your machine.
+
+- **🎨 Text-to-Image** — Generate photorealistic images from prompts using **FLUX.2 [klein] 4B** (via MLX)
+- **🔍 Image-to-Text** — Analyze images, caption them, answer visual questions, and extract structured JSON using **SmolVLM 256M** (via MLX-VLM)
+
+Everything runs locally on Apple Silicon, Windows, or Linux.
+
+## Platform Support
+
+| Platform | Hardware | T2I Backend | I2T Backend | Notes |
+|----------|----------|-------------|-------------|-------|
+| **macOS** | Apple Silicon (M1–M4) | FLUX.2 klein 4B int4 | SmolVLM 256M int4 | Best quality, native MLX |
+| **macOS** | Intel | SD 2.1 (Diffusers) | Qwen2.5-VL 3B | Slow, CPU-only |
+| **Windows** | NVIDIA GPU (8GB+) | SD 2.1 (Diffusers) | Qwen2.5-VL 3B | CUDA accelerated |
+| **Linux** | NVIDIA GPU (8GB+) | SD 2.1 (Diffusers) | Qwen2.5-VL 3B | CUDA accelerated |
+| **Any** | CPU only | SD 1.5 (Diffusers) | Phi-3 Vision | Very slow, emergency fallback |
+
+## Quick Start
+
+### Option 1: Download Pre-built Binary (Recommended)
+
+Download the latest release for your platform:
+
+| Platform | Download | Size |
+|----------|----------|------|
+| **macOS** | [`LocalVisionAI-v0.2.0-macOS.dmg`](https://github.com/minrahim1999/local-vision-ai/releases/latest) | ~62 MB |
+| **Windows** | [`LocalVisionAI-v0.2.0-Windows.zip`](https://github.com/minrahim1999/local-vision-ai/releases/latest) | ~60 MB |
+| **Linux** | [`LocalVisionAI-v0.2.0-Linux.tar.gz`](https://github.com/minrahim1999/local-vision-ai/releases/latest) | ~55 MB |
+
+Download → Extract → Double-click `LocalVisionAI` (or `LocalVisionAI.app` on macOS). The app auto-starts the API server and opens the GUI.
+
+### Option 2: Install from Source
+
+Requires **uv** (Python package manager) and **git**.
+
+**macOS (Apple Silicon):**
+```bash
+git clone https://github.com/minrahim1999/local-vision-ai.git
+cd local-vision-ai
+make setup                    # installs uv deps + mflux + mlx
+make download-models          # download model weights (~7 GB)
+make run                      # start API server
+```
+
+**Windows / Linux (NVIDIA GPU):**
+```bash
+git clone https://github.com/minrahim1999/local-vision-ai.git
+cd local-vision-ai
+uv venv --python 3.11
+uv pip install -e ".[text_to_image,image_to_text,dev,desktop]"
+make download-models
+make run
+```
+
+Or manually:
+```bash
+uv venv --python 3.11
+uv pip install -e ".[text_to_image,image_to_text,dev,desktop]"
+cp .env.example .env
+# Edit .env with your preferred settings
+```
+
+---
 
 ## Architecture
 
@@ -27,133 +101,49 @@ flowchart TD
     G --> I
 ```
 
-## Platform Support
+## Screenshots
 
-| Platform | Hardware | T2I Backend | I2T Backend | Notes |
-|----------|----------|-------------|-------------|-------|
-| **macOS** | Apple Silicon (M1–M4) | FLUX.2 klein 4B int4 | SmolVLM 256M int4 | Best quality, native MLX |
-| **macOS** | Intel | SD 2.1 (Diffusers) | Qwen2.5-VL 3B | Slow, CPU-only |
-| **Windows** | NVIDIA GPU (8GB+) | SD 2.1 (Diffusers) | Qwen2.5-VL 3B | CUDA accelerated |
-| **Linux** | NVIDIA GPU (8GB+) | SD 2.1 (Diffusers) | Qwen2.5-VL 3B | CUDA accelerated |
-| **Any** | CPU only | SD 1.5 (Diffusers) | Phi-3 Vision | Very slow, emergency fallback |
+| 🎨 Generate Image | 🔍 Analyze Image | 📊 System Status |
+|---|---|---|
+| Enter prompt, set resolution/steps, click Generate | Browse for image, enter prompt, get text/JSON result | Live memory, model loading, and health display |
 
-## Hardware Assumptions
+> *Screenshots coming soon — the app is functional and ready to use.*
 
-- Apple Silicon Mac (M1/M2/M3+)
-- macOS 14+
-- **16 GB unified memory** (tested and confirmed working)
-- No CUDA / NVIDIA hardware
-
-## Installation
-
-Requires **uv** (Python package manager) and **git**.
-
-### Platform-Specific Setup
-
-**macOS (Apple Silicon):**
-```bash
-cd local-vision-ai
-make setup                    # installs uv deps + mflux + mlx
-```
-
-**Windows / Linux (NVIDIA GPU):**
-```bash
-cd local-vision-ai
-uv venv --python 3.11
-uv pip install -e ".[text_to_image,image_to_text,dev]"
-# mlx/apple_silicon extras are skipped automatically on non-Apple platforms
-```
-
-Or manually:
-
-```bash
-uv venv --python 3.11
-uv pip install -e ".[text_to_image,image_to_text,dev]"
-cp .env.example .env
-# Edit .env with your preferred settings
-```
-
-## Model Download
-
-Download weights before running the API (avoids runtime stalls):
-
-```bash
-make download-models
-```
-
-Or:
-
-```bash
-bash scripts/download_models.sh
-```
-
-Models are cached to `./models/huggingface/`.
-
-### Disk Space Required
-
-| Model | Size | Notes |
-|-------|------|-------|
-| FLUX.2 [klein] 4B int4 | ~6–7 GB | T2I weights (primary) |
-| SmolVLM 256M int4 | ~200 MB | I2T weights |
-| Stable Diffusion 1.5 | ~5 GB | Legacy T2I fallback (optional) |
-
-## Running the API
-
-```bash
-make run
-```
-
-Or:
-
-```bash
-HF_HOME=$(pwd)/models/huggingface \
-  uv run python -m uvicorn api.main:app --host 0.0.0.0 --port 8000
-```
+---
 
 ## Desktop App
 
-A Flet-based desktop GUI is included. It requires the API server running.
+A Flet-based desktop GUI is included with three tabs:
+
+- **🎨 Generate Image** — Enter prompt, set resolution/steps, see generated image inline
+- **🔍 Analyze Image** — Browse for image, enter prompt, get text/JSON result
+- **📊 System Status** — Live memory, model loading, and health display
+
+### Launch Desktop (Development)
 
 ```bash
-make run-desktop
+make run-desktop          # requires API running separately
 ```
 
-Or directly:
-
-```bash
-uv run python -m app.desktop
-```
-
-For a **standalone** experience (API + GUI in one window):
-
+Or standalone (API + GUI in one window):
 ```bash
 lvai-standalone
 ```
 
-Or:
-
-```bash
-uv run python -m app.standalone
-```
-
 ### Building Release Binaries
 
-Build `.app` (macOS), `.exe` (Windows), or tarball (Linux) for distribution:
+Build `.app` (macOS), `.exe` (Windows), or tarball (Linux):
 
 ```bash
-# Local build (macOS)
-bash scripts/build_releases.sh v0.2.0
+# Local build
+make build-release VERSION=v0.2.0
 
 # GitHub Actions (all platforms)
 git tag v0.2.0
 git push origin v0.2.0
-# GitHub Actions automatically builds and attaches artifacts to release
 ```
 
-Features:
-- **Generate Image** tab: Enter prompt, set resolution/steps, see generated image inline
-- **Analyze Image** tab: Browse for image, enter prompt, get text/JSON result
-- **System Status** tab: Live memory, model loading, and health display
+---
 
 ## CLI Usage
 
@@ -185,12 +175,6 @@ lvai-cli generate "A cat on a sofa" --width 512 --height 512 --no-server
 lvai-cli analyze photo.jpg --prompt "Describe this image"
 ```
 
-### Analyze image (direct)
-
-```bash
-lvai-cli analyze photo.jpg --prompt "Describe this image" --no-server
-```
-
 ### Extract JSON (via API)
 
 ```bash
@@ -213,7 +197,9 @@ make cli-health
 make cli-backend
 ```
 
-## Example curl Commands
+---
+
+## API
 
 ### Text-to-Image (FLUX.2)
 
@@ -247,17 +233,6 @@ curl -X POST http://localhost:8000/v1/images/generate \
   }'
 ```
 
-**Direct CLI (no server needed)**
-
-```bash
-HF_HOME=$(pwd)/models/huggingface \
-.venv/bin/mflux-generate-flux2 \
-  --model mlx-community/FLUX.2-Klein-4B-4bit \
-  --prompt "A fierce cat and an angry dog fighting" \
-  --width 512 --height 512 --steps 4 --seed 1337 \
-  --output outputs/text_to_image/my_image.png
-```
-
 ### Image-to-Text (Analyze)
 
 ```bash
@@ -277,6 +252,8 @@ curl -X POST http://localhost:8000/v1/vision/extract \
   -F "max_tokens=512"
 ```
 
+---
+
 ## Memory Guidelines
 
 | Resolution | Peak Memory | Safe on 16 GB? | Speed |
@@ -290,31 +267,54 @@ curl -X POST http://localhost:8000/v1/vision/extract \
 - Do not run other heavy apps (e.g., video editing, Xcode builds) during 1024×1024 generation.
 - FLUX.2 runs in a **subprocess** via mflux, so the FastAPI process itself stays light.
 
-## Backend Selection
+---
 
-Edit `config/text_to_image.yaml`:
+## Hardware Requirements
 
-```yaml
-t2i:
-  backend: "flux2"   # recommended — FLUX.2 [klein] 4B
-  # or:
-  backend: "sd15"    # legacy — Stable Diffusion 1.5 (smaller, lower quality)
+| Component | Minimum | Recommended |
+|-----------|---------|-------------|
+| **macOS** | Apple Silicon (M1) | M2/M3 with 16 GB RAM |
+| **Windows/Linux** | NVIDIA GPU 8 GB VRAM | RTX 3060 / RTX 4060 |
+| **RAM** | 8 GB | 16 GB |
+| **Disk** | 10 GB free | 15 GB free |
+
+---
+
+## Model Download
+
+Download weights before running the API (avoids runtime stalls):
+
+```bash
+make download-models
 ```
 
-Restart the API after changing config.
+Or:
+```bash
+bash scripts/download_models.sh
+```
+
+Models are cached to `./models/huggingface/`.
+
+### Disk Space Required
+
+| Model | Size | Notes |
+|-------|------|-------|
+| FLUX.2 [klein] 4B int4 | ~6–7 GB | T2I weights (primary) |
+| SmolVLM 256M int4 | ~200 MB | I2T weights |
+| Stable Diffusion 1.5 | ~5 GB | Legacy T2I fallback (optional) |
+
+---
 
 ## Dataset Preparation
 
 ### Image-to-Text
 
 Format (JSONL):
-
 ```json
 {"image":"images/001.jpg","messages":[{"role":"user","content":"Describe this image."},{"role":"assistant","content":"A black sensor on a desk."}]}
 ```
 
 Prepare and split:
-
 ```bash
 uv run python -m training.image_to_text.prepare_dataset \
   --input-jsonl datasets/image_to_text/dataset.jsonl \
@@ -324,18 +324,18 @@ uv run python -m training.image_to_text.prepare_dataset \
 ### Text-to-Image
 
 Format (JSONL):
-
 ```json
 {"file_name":"001.jpg","text":"A black smart sensor placed on a white desk"}
 ```
 
 Prepare and split:
-
 ```bash
 uv run python -m training.text_to_image.prepare_dataset \
   --input-jsonl datasets/text_to_image/metadata.jsonl \
   --images-dir datasets/text_to_image/images
 ```
+
+---
 
 ## Fine-Tuning
 
@@ -361,7 +361,6 @@ uv run python -m training.text_to_image.prepare_dataset \
 ```
 
 Train:
-
 ```bash
 .venv/bin/mflux-train \
   --base-model flux2-klein-4b \
@@ -378,11 +377,22 @@ make train-vlm-smoke
 make train-vlm
 ```
 
-## Evaluation
+---
 
-```bash
-make evaluate-vlm
+## Backend Selection
+
+Edit `config/text_to_image.yaml`:
+
+```yaml
+t2i:
+  backend: "flux2"   # recommended — FLUX.2 [klein] 4B
+  # or:
+  backend: "sd15"    # legacy — Stable Diffusion 1.5
 ```
+
+Restart the API after changing config.
+
+---
 
 ## Troubleshooting
 
@@ -394,6 +404,10 @@ make evaluate-vlm
 | Corrupt image upload | Wrong format or size | Use PNG/JPG under 10 MB |
 | JSON parse failure from I2T | Model output raw text | Retry or tighten prompt |
 | Slow first inference | MLX weight download in progress | Pre-download with `make download-models` |
+| App won't open on macOS | Gatekeeper / unsigned binary | Right-click → Open, or `xattr -cr LocalVisionAI.app` |
+| API not found in standalone | Port 8000 in use | Set `LVAI_API_PORT=8001` env var |
+
+---
 
 ## Replacing Selected Models
 
@@ -404,23 +418,7 @@ Edit `config/text_to_image.yaml` and `config/image_to_text.yaml`:
 
 Then run `make download-models` again.
 
-## Moving Training to a Cloud NVIDIA GPU Later
-
-1. Export the adapter:
-   ```bash
-   python -c "from peft import PeftModel; ..."
-   ```
-2. Upload the adapter + dataset to the cloud instance.
-3. Install CUDA PyTorch (`torch>=2.2+cu121`).
-4. Increase batch size (e.g., 4) and resolution (e.g., 768×768).
-5. Run the same training scripts — they are framework-agnostic except for device config.
-
-## License Considerations
-
-- **FLUX.2 [klein] 4B:** Apache 2.0 (commercial-safe)
-- **SmolVLM:** Apache 2.0
-- **Stable Diffusion 1.5:** CreativeML Open RAIL-M (legacy)
-- **Generated outputs:** Subject to model license terms; review before redistribution.
+---
 
 ## Makefile Commands
 
@@ -430,12 +428,16 @@ Then run `make download-models` again.
 | `make audit` | Run environment + cross-platform audit |
 | `make download-models` | Download model weights |
 | `make run` | Start API server |
+| `make run-desktop` | Launch desktop GUI (dev mode) |
 | `make test` | Run pytest suite |
 | `make benchmark` | Run benchmarks |
+| `make build-release` | Build release binaries |
 | `make train-vlm-smoke` | One-step VLM LoRA smoke test |
 | `make train-vlm` | Full VLM LoRA training |
 | `make evaluate-vlm` | Evaluate VLM adapter |
 | `make clean-cache` | Remove generated cache files |
+
+---
 
 ## Documentation
 
@@ -451,6 +453,8 @@ Then run `make download-models` again.
 | `CHANGELOG.md` | Version history |
 | `LICENSE` | MIT License (code) + model license notes |
 
+---
+
 ## Development
 
 ```bash
@@ -458,3 +462,19 @@ uv run pytest tests/ -v
 uv run ruff check .
 uv run mypy api/ services/ training/
 ```
+
+---
+
+## License
+
+- **Code:** MIT License (see `LICENSE`)
+- **FLUX.2 [klein] 4B:** Apache 2.0 (commercial-safe)
+- **SmolVLM:** Apache 2.0
+- **Stable Diffusion 1.5:** CreativeML Open RAIL-M (legacy)
+- **Generated outputs:** Subject to model license terms; review before redistribution.
+
+---
+
+<p align="center">
+  Built with ❤️ by <a href="https://github.com/minrahim1999">Muhaimin</a>
+</p>

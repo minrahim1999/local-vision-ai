@@ -4,6 +4,30 @@ version = "0.2.0"
 description = "Production-structured local multimodal AI — Text-to-Image and Image-to-Text on Apple Silicon, Windows, and Linux"
 requires-python = ">=3.10"
 authors = [{ name = "Muhaimin", email = "dev@example.com" }]
+readme = "README.md"
+license = { text = "MIT" }
+keywords = ["ai", "vision", "multimodal", "image-generation", "vlm", "local-ml", "mlx", "flet", "desktop-app"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Multimedia :: Graphics",
+]
+
+[project.urls]
+Homepage = "https://github.com/minrahim1999/local-vision-ai"
+Repository = "https://github.com/minrahim1999/local-vision-ai"
+Issues = "https://github.com/minrahim1999/local-vision-ai/issues"
+Changelog = "https://github.com/minrahim1999/local-vision-ai/blob/main/CHANGELOG.md"
 
 dependencies = [
     "fastapi>=0.111",

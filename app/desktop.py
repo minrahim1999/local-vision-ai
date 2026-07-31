@@ -21,7 +21,7 @@ OUTPUT_DIR.mkdir(exist_ok=True)
 class LvaiDesktopApp:
     def __init__(self, page: ft.Page) -> None:
         self.page = page
-        self.page.title = "Local Vision AI"
+        self.page.title = "Local Vision AI v0.2.0"
         self.page.theme_mode = ft.ThemeMode.SYSTEM
         self.page.window_width = 1200
         self.page.window_height = 800

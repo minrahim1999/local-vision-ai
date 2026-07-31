@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+import sys
 
 # Hardcoded project root — this spec is always run from project root
 project_root = Path.cwd()
@@ -74,6 +75,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=str(project_root / 'assets' / 'icons' / 'icon.ico') if sys.platform == 'win32' else None,
 )
 
 coll = COLLECT(
