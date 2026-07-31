@@ -65,6 +65,12 @@ build-backend = "setuptools.build_meta"
 where = ["."]
 include = ["api*", "services*", "training*", "tests*"]
 
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+timeout = 120
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
