@@ -1,42 +1,38 @@
 # Text-to-Image Configuration
-# Supports two backends:
-#   - "sd15"  : Stable Diffusion 1.5 via Diffusers + MPS (legacy, smaller memory)
-#   - "flux2" : FLUX.2 [klein] 4B int4 via mflux + MLX (recommended, best quality)
+# Backends are selected automatically at runtime based on platform.
 
-# Backend selector
+# Override backend selection (optional):
+# backend: "flux2"     # Force Apple MLX backend
+# backend: "sd15"      # Force Diffusers backend
+# If omitted, auto-detects: Apple Silicon → flux2, else → sd15
+
 t2i:
-  backend: "flux2"   # or "sd15"
-
   # ------------------------------------------------------------------
-  # FLUX.2 [klein] 4B (recommended)
+  # Apple Silicon MLX (auto-selected on M1/M2/M3/M4 Macs)
   # ------------------------------------------------------------------
   flux2:
     model_id: "mlx-community/FLUX.2-Klein-4B-4bit"
     default_width: 512
     default_height: 512
     default_steps: 4
-    default_guidance_scale: 1.0   # guidance-distilled; this value is ignored
+    default_guidance_scale: 1.0
     max_width: 1024
     max_height: 1024
     low_ram: true
     mlx_cache_limit_gb: 8.0
-    # 512x512  ~4.5-5.5 GB peak  (safe on 16 GB)
-    # 1024x1024 ~11-13 GB peak  (use when I2T is unloaded)
 
   # ------------------------------------------------------------------
-  # Stable Diffusion 1.5 (fallback / legacy)
+  # Diffusers / PyTorch (auto-selected on Windows/Linux/NVIDIA)
   # ------------------------------------------------------------------
   sd15:
-    model_id: "runwayml/stable-diffusion-v1-5"
-    device: "mps"
-    dtype: "float16"
-    safety_checker: false
+    model_id: "stabilityai/stable-diffusion-2-1"
+    fallback_model: "runwayml/stable-diffusion-v1-5"
+    device: null         # null = auto-detect (cuda > mps > cpu)
+    dtype: null          # null = auto-detect
     default_width: 512
     default_height: 512
     default_steps: 20
     default_guidance_scale: 7.0
     max_width: 768
     max_height: 768
-    attention_slicing: true
-    cpu_offload: false
-    vae_slicing: true
+    cpu_offload: true

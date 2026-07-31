@@ -22,16 +22,21 @@ dependencies = [
 text_to_image = [
     "diffusers>=0.29,<0.40",
     "transformers>=4.40,<4.58",
+    "torch>=2.2",
     "accelerate>=0.30",
     "safetensors>=0.4",
     "omegaconf>=2.3",
 ]
 
 image_to_text = [
+    "torch>=2.2",
+    "transformers>=4.40,<4.58",
+    "qwen-vl-utils>=0.0.6",
+]
+
+apple_silicon = [
     "mlx>=0.22",
     "mlx-vlm>=0.1",
-    "transformers>=4.40,<4.58",
-    "torch>=2.2",
 ]
 
 unsloth = [

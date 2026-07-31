@@ -1,4 +1,4 @@
-"""FastAPI application for Local Vision AI."""
+"""FastAPI application for Local Vision AI — cross-platform backend support."""
 from __future__ import annotations
 
 import logging
@@ -21,7 +21,7 @@ from api.schemas import (
     TextToImageRequest,
     VisionResult,
 )
-from services.flux2_text_to_image import Flux2TextToImageService
+from services.backends.factory import create_i2t_backend, create_t2i_backend
 from services.image_to_text import ImageToTextService
 from services.memory_manager import MemoryManager
 from services.text_to_image import TextToImageService
@@ -47,41 +47,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         idle_timeout_seconds=float(os.getenv("IDLE_TIMEOUT_SECONDS", "300")),
     )
 
-    backend = t2i_cfg.get("backend", "sd15")
     hf_home = os.getenv("HF_HOME", str(Path("models/huggingface").resolve()))
 
-    if backend == "flux2":
-        flux_cfg = t2i_cfg.get("flux2", {})
-        t2i = Flux2TextToImageService(
-            outputs_dir="outputs/text_to_image",
-            hf_home=hf_home,
-            low_ram=flux_cfg.get("low_ram", True),
-            mlx_cache_limit_gb=flux_cfg.get("mlx_cache_limit_gb", 8.0),
-        )
-        logger.info("Using FLUX.2 [klein] 4B backend (mflux subprocess)")
-    else:
-        sd_cfg = t2i_cfg.get("sd15", {})
-        t2i = TextToImageService(
-            model_id=sd_cfg.get("model_id", "runwayml/stable-diffusion-v1-5"),
-            device=sd_cfg.get("device", "mps"),
-            dtype=sd_cfg.get("dtype", "float16"),
-            safety_checker=sd_cfg.get("safety_checker", False),
-            attention_slicing=sd_cfg.get("attention_slicing", True),
-            vae_slicing=sd_cfg.get("vae_slicing", True),
-            cpu_offload=sd_cfg.get("cpu_offload", False),
-            outputs_dir="outputs/text_to_image",
-        )
-        logger.info("Using SD 1.5 backend (Diffusers + MPS)")
-
-    i2t = ImageToTextService(
-        model_id=i2t_cfg.get("model_id", "mlx-community/SmolVLM-256M-Instruct-4bit"),
-        max_tokens=i2t_cfg.get("max_tokens", 512),
-        temperature=i2t_cfg.get("temperature", 0.2),
-        top_p=i2t_cfg.get("top_p", 0.9),
-        json_retries=i2t_cfg.get("json_retries", 3),
-        max_file_size_mb=i2t_cfg.get("max_file_size_mb", 10),
-        max_image_pixels=i2t_cfg.get("max_image_pixels", 2_097_152),
-    )
+    # Use factory for auto platform detection
+    t2i = create_t2i_backend({**t2i_cfg.get("flux2", {}), **t2i_cfg.get("sd15", {}), "hf_home": hf_home})
+    i2t = create_i2t_backend({**i2t_cfg.get("smolvlm", {}), **i2t_cfg.get("qwen", {}), "hf_home": hf_home})
 
     mm.register("text_to_image", t2i)
     mm.register("image_to_text", i2t)
@@ -90,7 +60,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     app.state.text_to_image = t2i
     app.state.image_to_text = i2t
 
-    logger.info("Services registered. Ready to accept requests.")
+    logger.info("Services registered. T2I: %s, I2T: %s", type(t2i).__name__, type(i2t).__name__)
     yield
     logger.info("Shutting down. Releasing all models.")
     mm.release_all()
@@ -98,8 +68,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 app = FastAPI(
     title="Local Vision AI",
-    description="Local multimodal AI API for Apple Silicon",
-    version="0.1.0",
+    description="Local multimodal AI API for Apple Silicon, Windows + CUDA, and Linux + CUDA",
+    version="0.2.0",
     lifespan=lifespan,
 )
 
@@ -189,7 +159,7 @@ async def vision_analyze(
 
     mm: MemoryManager = request.app.state.memory_manager
     mm.acquire("image_to_text")
-    svc: ImageToTextService = request.app.state.image_to_text
+    svc = request.app.state.image_to_text
     try:
         result = svc.analyze(
             image_path=str(local_file),
@@ -233,7 +203,7 @@ async def vision_extract(
 
     mm: MemoryManager = request.app.state.memory_manager
     mm.acquire("image_to_text")
-    svc: ImageToTextService = request.app.state.image_to_text
+    svc = request.app.state.image_to_text
     try:
         result = svc.extract(
             image_path=str(local_file),

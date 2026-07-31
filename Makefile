@@ -13,6 +13,7 @@ setup:
 
 audit:
 	bash scripts/check_environment.sh
+	bash scripts/check_cross_platform.sh
 
 download-models:
 	bash scripts/download_models.sh

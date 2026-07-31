@@ -16,16 +16,26 @@ Everything runs on-device. No cloud API keys required.
 ```mermaid
 flowchart TD
     A[Client] -- HTTP --> B[FastAPI / Uvicorn]
-    B --> C{Memory Manager}
-    C -->|Load| D[FLUX.2 T2I Service]
-    C -->|Load| E[SmolVLM I2T Service]
-    D -->|subprocess| F[mflux-generate-flux2]
-    E -->|MLX| G[mlx_vlm.generate]
-    F --> H[Generated Image PNG]
-    G --> I[Text / JSON Response]
-    C -.->|Unload before switch| D
-    C -.->|Unload before switch| E
+    B --> C{Backend Factory}
+    C -- macOS / Apple Silicon --> D[FLUX.2 mflux]
+    C -- Windows/Linux/CUDA --> E[Diffusers SD 2.1]
+    C -- macOS / Apple Silicon --> F[SmolVLM mlx_vlm]
+    C -- Windows/Linux/CUDA --> G[Qwen2.5-VL Transformers]
+    D --> H[Generated Image]
+    E --> H
+    F --> I[Text / JSON]
+    G --> I
 ```
+
+## Platform Support
+
+| Platform | Hardware | T2I Backend | I2T Backend | Notes |
+|----------|----------|-------------|-------------|-------|
+| **macOS** | Apple Silicon (M1–M4) | FLUX.2 klein 4B int4 | SmolVLM 256M int4 | Best quality, native MLX |
+| **macOS** | Intel | SD 2.1 (Diffusers) | Qwen2.5-VL 3B | Slow, CPU-only |
+| **Windows** | NVIDIA GPU (8GB+) | SD 2.1 (Diffusers) | Qwen2.5-VL 3B | CUDA accelerated |
+| **Linux** | NVIDIA GPU (8GB+) | SD 2.1 (Diffusers) | Qwen2.5-VL 3B | CUDA accelerated |
+| **Any** | CPU only | SD 1.5 (Diffusers) | Phi-3 Vision | Very slow, emergency fallback |
 
 ## Hardware Assumptions
 
@@ -38,9 +48,20 @@ flowchart TD
 
 Requires **uv** (Python package manager) and **git**.
 
+### Platform-Specific Setup
+
+**macOS (Apple Silicon):**
 ```bash
 cd local-vision-ai
-make setup
+make setup                    # installs uv deps + mflux + mlx
+```
+
+**Windows / Linux (NVIDIA GPU):**
+```bash
+cd local-vision-ai
+uv venv --python 3.11
+uv pip install -e ".[text_to_image,image_to_text,dev]"
+# mlx/apple_silicon extras are skipped automatically on non-Apple platforms
 ```
 
 Or manually:
