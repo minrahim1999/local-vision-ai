@@ -1,83 +1,93 @@
-name: Build and Release
+name: Manual Release
 
 on:
-  push:
-    tags:
-      - 'v*.*.*'
   workflow_dispatch:
     inputs:
-      tag:
-        description: 'Version tag to build (e.g., v0.2.0)'
+      version:
+        description: 'Version to release (e.g., v0.2.0 or 0.2.0)'
         required: true
         default: 'v0.2.0'
-      create_tag:
-        description: 'Create tag if it does not exist'
-        required: true
-        default: 'false'
-        type: choice
-        options: ['true', 'false']
       draft:
         description: 'Create as draft release'
-        required: true
-        default: 'true'
-        type: choice
-        options: ['true', 'false']
+        type: boolean
+        default: true
+      prerelease:
+        description: 'Mark as pre-release'
+        type: boolean
+        default: false
 
 env:
   PYTHON_VERSION: '3.11'
 
 jobs:
   # --------------------------------------------------------------------------
-  # Metadata / shared vars
+  # Metadata
   # --------------------------------------------------------------------------
   meta:
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ steps.get_version.outputs.version }}
-      tag: ${{ steps.get_version.outputs.tag }}
-      release_name: ${{ steps.get_version.outputs.release_name }}
+      version: ${{ steps.parse.outputs.version }}
+      tag: ${{ steps.parse.outputs.tag }}
+      release_name: ${{ steps.parse.outputs.release_name }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Determine version
-        id: get_version
+      - name: Parse version input
+        id: parse
         run: |
-          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref_type }}" = "tag" ]; then
-            TAG="${{ github.ref_name }}"
-          else
-            TAG="${{ github.event.inputs.tag }}"
-          fi
-          VERSION="${TAG#v}"
+          RAW="${{ github.event.inputs.version }}"
+          # Strip leading 'v' if present, then re-add it for tag
+          VERSION="${RAW#v}"
+          TAG="v${VERSION}"
           RELEASE_NAME="Local Vision AI ${TAG}"
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "version=${VERSION}" >> $GITHUB_OUTPUT
           echo "release_name=${RELEASE_NAME}" >> $GITHUB_OUTPUT
-          echo "Building ${RELEASE_NAME}"
+          echo "Parsed: TAG=${TAG}, VERSION=${VERSION}"
 
-      - name: Create tag if requested
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.create_tag == 'true'
+  # --------------------------------------------------------------------------
+  # Create git tag (only if it doesn't exist)
+  # --------------------------------------------------------------------------
+  create-tag:
+    needs: meta
+    runs-on: ubuntu-latest
+    outputs:
+      created: ${{ steps.tag.outputs.created }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or verify tag
+        id: tag
         run: |
-          TAG="${{ github.event.inputs.tag }}"
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
+          TAG="${{ needs.meta.outputs.tag }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "Tag $TAG already exists."
+            echo "Tag $TAG already exists. Skipping creation."
+            echo "created=false" >> $GITHUB_OUTPUT
           else
-            git tag -a "$TAG" -m "Release $TAG"
+            echo "Creating annotated tag $TAG..."
+            # Use latest commit on current branch
+            COMMIT=$(git rev-parse HEAD)
+            git tag -a "$TAG" "$COMMIT" -m "Release $TAG"
             git push origin "$TAG"
-            echo "Created and pushed tag $TAG"
+            echo "created=true" >> $GITHUB_OUTPUT
+            echo "Created tag $TAG at $COMMIT"
           fi
 
   # --------------------------------------------------------------------------
   # macOS
   # --------------------------------------------------------------------------
   build-macos:
-    needs: meta
+    needs: [meta, create-tag]
     runs-on: macos-14
     steps:
-      - name: Checkout
+      - name: Checkout at tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -92,29 +102,22 @@ jobs:
           uv pip install -e ".[dev,desktop]"
           uv pip install pyinstaller
 
-      - name: Inject version into desktop.py
+      - name: Inject version
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
           sed -i '' "s/Local Vision AI v.*/Local Vision AI v${VERSION}/g" app/desktop.py
 
-      - name: Build macOS .app
-        run: |
-          .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
-
-      - name: Verify .app bundle
-        run: |
-          ls -la dist/LocalVisionAI.app/Contents/MacOS/
-          ls dist/LocalVisionAI.app/Contents/Resources/ | grep -i icon || true
+      - name: Build .app
+        run: .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
 
       - name: Create DMG
         run: |
           mkdir -p dist/dmg_staging
-          cp -r "dist/LocalVisionAI.app" "dist/dmg_staging/LocalVisionAI.app"
+          cp -r dist/LocalVisionAI.app dist/dmg_staging/
           hdiutil create -volname "Local Vision AI" \
-            -srcfolder "dist/dmg_staging" \
+            -srcfolder dist/dmg_staging \
             -ov -format UDZO \
             "dist/LocalVisionAI-${{ needs.meta.outputs.tag }}-macOS.dmg"
-          ls -lh "dist/LocalVisionAI-${{ needs.meta.outputs.tag }}-macOS.dmg"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -126,11 +129,13 @@ jobs:
   # Windows
   # --------------------------------------------------------------------------
   build-windows:
-    needs: meta
+    needs: [meta, create-tag]
     runs-on: windows-latest
     steps:
-      - name: Checkout
+      - name: Checkout at tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
@@ -145,27 +150,19 @@ jobs:
           uv pip install -e ".[dev,desktop]"
           uv pip install pyinstaller
 
-      - name: Inject version into desktop.py
+      - name: Inject version
         shell: bash
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
           sed -i "s/Local Vision AI v.*/Local Vision AI v${VERSION}/g" app/desktop.py
 
-      - name: Build Windows executable
-        run: |
-          .venv\Scripts\pyinstaller app/desktop.spec --clean --noconfirm
-
-      - name: Verify build
-        shell: bash
-        run: |
-          ls -la dist/LocalVisionAI/
+      - name: Build EXE
+        run: .venv\Scripts\pyinstaller app/desktop.spec --clean --noconfirm
 
       - name: Create ZIP
         run: |
           cd dist\LocalVisionAI
           7z a -tzip ..\LocalVisionAI-${{ needs.meta.outputs.tag }}-Windows.zip *
-          cd ..
-          ls LocalVisionAI-${{ needs.meta.outputs.tag }}-Windows.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -177,11 +174,13 @@ jobs:
   # Linux
   # --------------------------------------------------------------------------
   build-linux:
-    needs: meta
+    needs: [meta, create-tag]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout at tag
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.meta.outputs.tag }}
 
       - name: Install system deps
         run: |
@@ -201,23 +200,17 @@ jobs:
           uv pip install -e ".[dev,desktop]"
           uv pip install pyinstaller
 
-      - name: Inject version into desktop.py
+      - name: Inject version
         run: |
           VERSION="${{ needs.meta.outputs.version }}"
           sed -i "s/Local Vision AI v.*/Local Vision AI v${VERSION}/g" app/desktop.py
 
-      - name: Build Linux executable
-        run: |
-          .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
-
-      - name: Verify build
-        run: |
-          ls -la dist/LocalVisionAI/
+      - name: Build binary
+        run: .venv/bin/pyinstaller app/desktop.spec --clean --noconfirm
 
       - name: Create tarball
         run: |
           cd dist && tar -czf "LocalVisionAI-${{ needs.meta.outputs.tag }}-Linux.tar.gz" LocalVisionAI/
-          ls -lh "LocalVisionAI-${{ needs.meta.outputs.tag }}-Linux.tar.gz"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -228,21 +221,21 @@ jobs:
   # --------------------------------------------------------------------------
   # Create GitHub Release
   # --------------------------------------------------------------------------
-  create-release:
-    needs: [meta, build-macos, build-windows, build-linux]
+  release:
+    needs: [meta, create-tag, build-macos, build-windows, build-linux]
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_tag == 'true')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.meta.outputs.tag }}
           fetch-depth: 0
 
       - name: Generate release notes
         id: notes
         run: |
           TAG="${{ needs.meta.outputs.tag }}"
-          # Extract changelog section for this version
+          # Try to extract changelog section
           sed -n "/^## \[${TAG#v}\]/,/^## \[/p" CHANGELOG.md | sed '$d' > release_notes.md || true
           if [ ! -s release_notes.md ]; then
             echo "### Release ${TAG}" > release_notes.md
@@ -251,14 +244,13 @@ jobs:
           fi
           cat release_notes.md
 
-      - name: Download all artifacts
+      - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
 
       - name: List artifacts
-        run: |
-          find artifacts -type f -ls
+        run: find artifacts -type f -ls
 
       - name: Create Release
         uses: softprops/action-gh-release@v2
@@ -266,7 +258,8 @@ jobs:
           tag_name: ${{ needs.meta.outputs.tag }}
           name: ${{ needs.meta.outputs.release_name }}
           body_path: release_notes.md
-          draft: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.draft == 'true' || true }}
+          draft: ${{ github.event.inputs.draft }}
+          prerelease: ${{ github.event.inputs.prerelease }}
           generate_release_notes: true
           files: |
             artifacts/macos-release/*
