@@ -324,7 +324,7 @@ Then run `make download-models` again.
 | Command | Purpose |
 |---------|---------|
 | `make setup` | Create venv and install dependencies |
-| `make audit` | Run environment audit script |
+| `make audit` | Run environment + cross-platform audit |
 | `make download-models` | Download model weights |
 | `make run` | Start API server |
 | `make test` | Run pytest suite |
@@ -333,6 +333,20 @@ Then run `make download-models` again.
 | `make train-vlm` | Full VLM LoRA training |
 | `make evaluate-vlm` | Evaluate VLM adapter |
 | `make clean-cache` | Remove generated cache files |
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| `README.md` | This file — overview and quick start |
+| `docs/api-reference.md` | Full REST API documentation with curl examples |
+| `docs/backends.md` | Backend architecture and how to add new platforms |
+| `docs/environment-report.md` | Hardware/software audit and compatibility matrix |
+| `docs/model-selection.md` | How models were chosen, with alternatives |
+| `docs/text-to-image-training-feasibility.md` | T2I LoRA training analysis for 16 GB |
+| `CONTRIBUTING.md` | Guidelines for contributors |
+| `CHANGELOG.md` | Version history |
+| `LICENSE` | MIT License (code) + model license notes |
 
 ## Development
 

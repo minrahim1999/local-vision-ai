@@ -1,6 +1,6 @@
 # Environment Report
 
-Generated: 2026-07-31
+Generated during Phase 0 of the Local Vision AI project.
 
 ## Hardware Summary
 
@@ -8,137 +8,146 @@ Generated: 2026-07-31
 |----------|-------|
 | Device | MacBook Air |
 | Chip | Apple M3 |
-| Architecture | arm64 (Apple Silicon) |
-| CPU Cores | 8 (4 Performance + 4 Efficiency) |
-| Unified Memory | 16 GB |
-| Model Identifier | Mac15,12 |
+| Architecture | arm64 |
+| CPU Cores | 8 (4 performance + 4 efficiency) |
+| GPU Cores | 10 |
+| Neural Engine | 16-core |
+| Unified Memory | 16 GB LPDDR5 |
+| Memory Bandwidth | 100 GB/s |
 
 ## Operating System
 
 | Property | Value |
 |----------|-------|
-| Name | macOS |
+| OS | macOS |
 | Version | 26.5.2 (Tahoe) |
-| Build | 25F84 |
+| Kernel | Darwin 26.5.2 |
 
-## Python Versions
+## Python Environment
 
-| Interpreter | Version | Notes |
-|-------------|---------|-------|
-| System `python3` | 3.9.6 | Bundled with macOS; outdated for modern ML |
-| `python3.10` (pyenv) | 3.10.17 | Has PyTorch 2.13.0 + MPS |
-| Unsloth Studio | 3.13.13 | Separate venv in `~/.unsloth/studio` |
+| Property | Value |
+|----------|-------|
+| Python Version | 3.11.12 |
+| Package Manager | uv |
+| Virtual Environment | `.venv` (in project root) |
 
-## Package Manager
+### Core Packages
 
-- **uv** 0.11.29 (aarch64-apple-darwin) — installed and preferred.
+| Package | Version | Platform |
+|---------|---------|----------|
+| PyTorch | 2.13.0 | All (CUDA/MPS/CPU) |
+| MLX | 0.32.0 | Apple Silicon only |
+| MLX-VLM | 0.4.4 | Apple Silicon only |
+| mflux | latest | Apple Silicon only |
+| Diffusers | 0.39.0 | All |
+| Transformers | 4.57.6 | All |
+| FastAPI | 0.111.0 | All |
+| Uvicorn | 0.30.0 | All |
+| Pydantic | 2.7.0 | All |
+| Pillow | 10.0.0 | All |
+| psutil | 6.0.0 | All |
+
+## Acceleration Availability
+
+| Accelerator | Status | Notes |
+|-------------|--------|-------|
+| **MLX** | ✅ Available | Apple Silicon exclusive |
+| **MPS** | ✅ Available | macOS Metal Performance Shaders |
+| **CUDA** | ❌ Not Available | No NVIDIA hardware |
+| **CPU** | ✅ Available | Fallback for all operations |
 
 ## Unsloth
 
-- **CLI version:** 2026.7.6 (2026.7.7 in studio venv)
-- **Commands:** `train`, `inference`, `chat`, `export`, `list-checkpoints`, `run`, `studio`, `start`
-- **Supported model families in installed version:**
-  - `gemma`, `gemma2`, `gemma3`, `gemma4`
-  - `qwen2`, `qwen3`, `qwen3_moe`
-  - `llama`, `llama4`
-  - `mistral`
-  - `vision` (vision-language wrapper)
-  - `diffusion` (text-to-image)
-- **Studio venv location:** `~/.unsloth/studio/unsloth_studio/bin/python`
-- **PyTorch in studio:** 2.10.0 (MPS built & available)
-- **Transformers in studio:** 4.57.6
-- **Diffusers in studio:** 0.39.0
-- **Accelerate in studio:** 1.14.0
-- **PEFT in studio:** 0.18.1
+| Property | Value |
+|----------|-------|
+| Version | 2026.7.7 |
+| Python | 3.13 (Studio), 3.11 (Project venv) |
+| Vision Support | ✅ FastVisionModel available |
 
-## MLX (Apple Silicon Native)
+## Hermes Agent
 
-| Package | Version |
-|---------|---------|
-| `mlx` | 0.32.0 |
-| `mlx-metal` | 0.32.0 |
-| `mlx-lm` | 0.31.2 |
-| `mlx-vlm` | 0.4.4 |
+| Property | Value |
+|----------|-------|
+| Status | Installed and configured |
+| Profile | default |
 
-**Available `mlx-vlm` model families** (relevant to this project):
-- `gemma3`, `gemma3n`, `gemma4`
-- `qwen2_vl`, `qwen2_5_vl`, `qwen3_vl`, `qwen3_5`
-- `smolvlm`
-- `paligemma`
-- `moondream3`
-- `llava`, `llava_next`
-- `phi4_siglip`
-- `mistral3`
+## Available Disk Space
 
-## PyTorch MPS
+| Location | Usage |
+|----------|-------|
+| Project total | ~33 GB (includes models) |
+| `.venv` | ~1.5 GB |
+| FLUX.2 weights | ~4.3 GB |
+| HuggingFace cache | ~6 GB |
 
-- **MPS built:** Yes
-- **MPS available:** Yes
-- **Notes:** PyTorch MPS is functional but has narrower operator coverage than MLX. Some operations silently fall back to CPU or raise `NotImplementedError`.
+## Recommended Memory Limits
 
-## CUDA Status
+For reliable operation on 16 GB unified memory:
 
-- **CUDA available:** No
-- **NVIDIA libraries:** Not present
-- **Impact:** Any package requiring CUDA (e.g., CUDA Triton, CUDA-only `bitsandbytes`) will fail or must be avoided.
-
-## Disk Space
-
-| Volume | Size | Used | Available |
-|--------|------|------|-----------|
-| `/System/Volumes/Data` | 460 GB | 333 GB | ~92 GB |
-
-**Recommendation:** Reserve at least 20–30 GB for model weights, datasets, and generated outputs.
-
-## Recommended Memory Limits (16 GB Unified)
-
-| Scenario | Safe Peak | Caution Zone |
-|----------|-----------|--------------|
-| Inference (single model) | ≤ 10 GB | 10–13 GB |
-| Training (QLoRA, rank 8) | ≤ 12 GB | 12–14 GB |
-| Two models loaded simultaneously | **Avoid** | — |
-
-**Guidelines:**
-- Keep a safety margin of ~3–4 GB for macOS and other processes.
-- Batch size should remain **1** unless proven safe.
-- Use gradient accumulation to simulate larger batches.
-- Start image generation at **512×512**; 768×768 may push into swap.
-- Use 4-bit quantization where supported.
+| Pipeline | Max Resolution | Peak Memory | Safe? |
+|----------|---------------|-------------|-------|
+| FLUX.2 T2I | 512×512 | ~4.8 GB | ✅ Yes |
+| FLUX.2 T2I | 1024×1024 | ~12.4 GB | ⚠️ Tight |
+| SmolVLM I2T | Any supported | ~1.3 GB | ✅ Yes |
+| SD 1.5 T2I | 512×512 | ~508 MB | ✅ Yes |
+| Both loaded | — | ~14 GB | ❌ No |
 
 ## Known Compatibility Risks
 
-1. **Python 3.9 (system):** Too old for modern `transformers`/`diffusers`/`mlx`. The project should use a dedicated uv virtual environment with Python ≥ 3.10.
-2. **Unsloth Studio venv isolation:** The studio environment is fully isolated. We should not attempt to modify it. Instead, create a fresh uv-managed virtual environment for `local-vision-ai`.
-3. **MPS operator gaps:** Certain diffusion schedulers and attention implementations may not be fully supported on MPS. MLX-native diffusion is preferred when available.
-4. **MLX diffusion maturity:** As of MLX 0.32, MLX-native Stable Diffusion exists but may lag behind Diffusers in model coverage. Diffusers + MPS is a reliable fallback for SD 1.5/2.1.
-5. **Unsloth text-to-image training:** The installed Unsloth version includes a `diffusion` module, but its Apple Silicon support is less battle-tested than language-model training. We will treat T2I LoRA training as *feasibility-test only* in Milestone 1.
-6. **Unified memory swap:** Sustained workloads near 14 GB will force heavy swap usage and degrade performance. We must explicitly unload models and call `gc.collect()` / `torch.mps.empty_cache()` between pipeline switches.
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| FLUX.2 1024×1024 + swap pressure | High | Use 512×512 default, unload I2T first |
+| MLX first import slow | Medium | Pre-warm in setup, allow 60s timeout |
+| mflux subprocess timeout | Medium | Use 600s timeout, monitor swap |
+| VAE fp16 NaN on MPS | High | Force float32 for VAE (SD 1.5 only) |
+| Unsloth import timeout | Medium | Extend timeout or use Studio Python |
 
-## Selected Model Candidates
+## Cross-Platform Notes
 
-### Image-to-Text (Vision-Language)
+This environment report reflects the **primary development machine** (Apple Silicon). The codebase auto-detects platform and selects appropriate backends:
 
-| Candidate | Size | Quantization | Why / Why Not |
-|-----------|------|--------------|---------------|
-| **SmolVLM-256M-Instruct** (mlx-vlm) | ~256M–500M | 4-bit built-in | Extremely small, fast, good for captioning/VQA. Fits comfortably in < 2 GB. |
-| **Qwen2.5-VL-3B-Instruct** (mlx-vlm) | ~3B | 4-bit built-in | Strong OCR, JSON structured output, Unsloth supports Qwen-VL fine-tuning. Good balance of capability and memory. |
-| **Gemma-3-4B-IT** (mlx-vlm) | ~4B | 4-bit built-in | Good quality, but 4B is near the upper comfort limit for 16 GB when training. |
+- **Apple Silicon**: FLUX.2 (MLX) + SmolVLM (MLX-VLM)
+- **Windows/Linux + NVIDIA**: SD 2.1 (Diffusers/CUDA) + Qwen2.5-VL (Transformers/CUDA)
+- **CPU-only**: SD 1.5 (Diffusers/CPU) + Phi-3 Vision (Transformers/CPU)
 
-**First-choice:** `SmolVLM-256M-Instruct` for baseline inference (lowest risk, fastest). `Qwen2.5-VL-3B-Instruct` as the primary fine-tuning target if Unsloth supports it in the installed version.
+See `docs/backends.md` for per-platform requirements.
+
+## Selected Model Candidates (16 GB Constraints)
 
 ### Text-to-Image
 
-| Candidate | Size | Why / Why Not |
-|-----------|------|---------------|
-| **Stable Diffusion 1.5** (Diffusers + MPS) | ~1.2B (fp32) / ~4 GB (fp16) | Proven on Apple Silicon, low memory, good LoRA ecosystem. |
-| **Stable Diffusion XL** (Diffusers + MPS) | ~3.5B / ~7 GB (fp16) | Better quality, but pushes memory limits. Optional for later. |
-| **MLX Stable Diffusion** (native MLX) | ~1.2B | Fastest on Apple Silicon, but fewer pretrained variants and LoRA tools. |
+| Model | Parameters | Quantization | Size | Platform | Status |
+|-------|-----------|--------------|------|----------|--------|
+| **FLUX.2 [klein] 4B** | 4B | int4 | ~6 GB | Apple MLX | ✅ Selected |
+| Stable Diffusion 1.5 | 1.2B | fp16 | ~5 GB | All | ✅ Fallback |
+| Stable Diffusion 2.1 | 2.6B | fp16 | ~6 GB | All | ✅ CUDA fallback |
+| Z-Image Turbo | 4B+ | int8 | ~14 GB | Apple MLX | ❌ Too large |
 
-**First-choice:** Stable Diffusion 1.5 via Diffusers with MPS, because it is the most stable, widely supported, and has the best LoRA tooling on Apple Silicon.
+### Image-to-Text
 
-## Next Steps
+| Model | Parameters | Quantization | Size | Platform | Status |
+|-------|-----------|--------------|------|----------|--------|
+| **SmolVLM 256M** | 256M | int4 | ~200 MB | Apple MLX | ✅ Selected |
+| Qwen2.5-VL 3B | 3B | int4/int8 | ~2 GB | All | ✅ CUDA fallback |
+| PaliGemma 3B | 3B | int4 | ~2 GB | All | ⚠️ Not tested |
+| Gemma-3 4B IT | 4B | int4 | ~2.5 GB | All | ⚠️ Not tested |
 
-1. Create a dedicated uv virtual environment with Python 3.10/3.11.
-2. Install `mlx`, `mlx-vlm`, `diffusers`, `transformers`, `accelerate`, `fastapi`, `uvicorn`, `pillow`, `psutil`, `pyyaml`, `pydantic`.
-3. Download chosen models during setup, not at runtime.
-4. Verify single-image inference before any training attempt.
+## Verification Commands
+
+```bash
+# Re-run this audit
+make audit
+
+# Check platform detection
+bash scripts/check_cross_platform.sh
+
+# Verify backends
+python -c "from services.backends.factory import create_t2i_backend, create_i2t_backend; \
+           t2i = create_t2i_backend({}); i2t = create_i2t_backend({}); \
+           print('T2I:', type(t2i).__name__); print('I2T:', type(i2t).__name__)"
+```
+
+---
+
+*Report generated: 2026-07-31*
+*Machine: MacBook Air M3, 16 GB*
