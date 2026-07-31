@@ -1,0 +1,1 @@
+{"image":"images/001.jpg","messages":[{"role":"user","content":"Describe this image and return JSON."},{"role":"assistant","content":"{\"category\":\"smart_sensor\",\"color\":\"black\",\"led\":true}"}]}

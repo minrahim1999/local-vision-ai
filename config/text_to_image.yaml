@@ -1,0 +1,15 @@
+# Text-to-Image Configuration
+t2i:
+  model_id: "runwayml/stable-diffusion-v1-5"
+  device: "mps"
+  dtype: "float16"
+  safety_checker: false
+  default_width: 512
+  default_height: 512
+  default_steps: 20
+  default_guidance_scale: 7.0
+  max_width: 768
+  max_height: 768
+  attention_slicing: true
+  cpu_offload: false
+  vae_slicing: true

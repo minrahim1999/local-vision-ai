@@ -1,0 +1,15 @@
+# Image-to-Text Configuration
+i2t:
+  model_id: "mlx-community/smolvlm-256m-8bit"
+  max_tokens: 512
+  temperature: 0.2
+  top_p: 0.9
+  response_format: "text"
+  json_retries: 3
+  supported_formats:
+    - png
+    - jpg
+    - jpeg
+    - webp
+  max_file_size_mb: 10
+  max_image_pixels: 2097152
