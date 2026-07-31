@@ -3,7 +3,7 @@ name = "local-vision-ai"
 version = "0.1.0"
 description = "Production-structured local multimodal AI for Apple Silicon"
 requires-python = ">=3.10"
-authors = [{ name = "Muhaimin", email = "" }]
+authors = [{ name = "Muhaimin", email = "dev@example.com" }]
 
 dependencies = [
     "fastapi>=0.111",
